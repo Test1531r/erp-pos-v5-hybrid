@@ -1,0 +1,14 @@
+# V5 Hybrid changes
+- Electron Windows desktop shell and NSIS installer configuration.
+- Same React app continues to work on the web.
+- Cloud API URL support with VITE_API_URL/VITE_SOCKET_URL.
+- Persistent cached products, categories and branch inventory for offline use.
+- Limited offline CASH sales queue for non-IMEI products.
+- Automatic synchronization on reconnect.
+- Idempotent `clientOperationId` stored on invoices to prevent duplicate synced sales.
+- Sync Center screen with pending/failed/synced operation visibility.
+- Global Online/Offline status badge.
+- Local stock reservation on the offline device.
+- Server-authoritative conflict rejection during sync.
+- Desktop-ready thermal/browser printing path retained from POS receipt.
+- Auto-update hook included; publishing provider must be configured before production auto-update distribution.

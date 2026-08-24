@@ -1,0 +1,49 @@
+{
+  "name": "erp-pos-v5-hybrid",
+  "private": true,
+  "version": "5.0.0",
+  "scripts": {
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "desktop:dev": "cross-env NODE_ENV=development ELECTRON_START_URL=http://localhost:5173 electron .",
+    "build:web": "npm --prefix frontend run build",
+    "desktop:build": "npm run build:web && electron-builder --win nsis",
+    "desktop:dir": "npm run build:web && electron-builder --dir"
+  },
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "main": "desktop/main.cjs",
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.erppos.hybrid",
+    "productName": "ERP POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}

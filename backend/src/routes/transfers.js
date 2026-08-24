@@ -1,0 +1,98 @@
+import { Router } from "express";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../index.js";
+import { authenticate } from "../middleware/auth.js";
+import { io } from "../index.js";
+import dayjs from "dayjs";
+
+const router = Router();
+router.use(authenticate);
+
+router.get("/", async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const branchId = req.branchId;
+    const where = {};
+    if (branchId) where.OR = [{ sourceBranchId: branchId }, { destBranchId: branchId }];
+    if (status) where.status = status;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [transfers, total] = await prisma.$transaction([
+      prisma.stockTransfer.findMany({ where, include: { sourceBranch: { select: { name: true } }, destBranch: { select: { name: true } }, requestedBy: { select: { name: true } }, _count: { select: { items: true } } }, orderBy: { createdAt: "desc" }, skip, take: parseInt(limit) }),
+      prisma.stockTransfer.count({ where }),
+    ]);
+    res.json({ transfers, total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post("/", async (req, res) => {
+  try {
+    const { destBranchId, items, notes } = req.body;
+    const sourceBranchId = req.branchId;
+    if (sourceBranchId === destBranchId) return res.status(400).json({ error: "الفرع المصدر والوجهة لا يمكن أن يكونا نفس الفرع" });
+
+    const branch = await prisma.branch.findUnique({ where: { id: sourceBranchId }, select: { code: true } });
+    const today = dayjs().format("YYYYMMDD");
+    const prefix = `TRF-${branch.code}-${today}`;
+    const last = await prisma.stockTransfer.findFirst({ where: { referenceNumber: { startsWith: prefix } }, orderBy: { referenceNumber: "desc" } });
+    const seq = last ? parseInt(last.referenceNumber.split("-").pop()) + 1 : 1;
+    const referenceNumber = `${prefix}-${String(seq).padStart(4, "0")}`;
+
+    const transfer = await prisma.$transaction(async (tx) => {
+      for (const item of items) {
+        const inv = await tx.inventory.findUnique({ where: { productId_branchId: { productId: item.productId, branchId: sourceBranchId } } });
+        if (!inv || inv.quantity < item.quantity) {
+          const p = await tx.product.findUnique({ where: { id: item.productId }, select: { name: true } });
+          throw new Error(`مخزون غير كافٍ للمنتج "${p?.name}"`);
+        }
+      }
+      return tx.stockTransfer.create({
+        data: { referenceNumber, sourceBranchId, destBranchId, requestedById: req.user.id, status: "PENDING", notes, items: { create: items.map((i) => ({ productId: i.productId, quantity: i.quantity, imeiNumbers: i.imeiNumbers || [] })) } },
+        include: { sourceBranch: { select: { name: true } }, destBranch: { select: { name: true } }, items: true },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    io.to(`branch:${sourceBranchId}`).emit("transfer:update", { type: "created", transfer });
+    io.to(`branch:${destBranchId}`).emit("transfer:update", { type: "created", transfer });
+    res.status(201).json(transfer);
+  } catch (err) {
+    if (err.message.includes("مخزون")) return res.status(422).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["COMPLETED", "CANCELLED"].includes(status)) return res.status(400).json({ error: "الحالة غير صالحة" });
+    const transfer = await prisma.stockTransfer.findUnique({ where: { id: req.params.id }, include: { items: true } });
+    if (!transfer) return res.status(404).json({ error: "التحويل غير موجود" });
+    if (transfer.status !== "PENDING") return res.status(409).json({ error: "لا يمكن تغيير تحويل تم إغلاقه مسبقاً" });
+    if (req.user.role !== "SUPER_ADMIN" && ![transfer.sourceBranchId, transfer.destBranchId].includes(req.user.branchId)) return res.status(403).json({ error: "ليس لديك صلاحية على هذا التحويل" });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const data = { status, updatedAt: new Date() };
+      if (status === "COMPLETED") {
+        data.completedAt = new Date();
+        for (const item of transfer.items) {
+          const srcBefore = await tx.inventory.findUnique({ where: { productId_branchId: { productId: item.productId, branchId: transfer.sourceBranchId } } });
+          if (!srcBefore || srcBefore.quantity < item.quantity) throw Object.assign(new Error("مخزون المصدر تغير وأصبح غير كافٍ"), { status: 409 });
+          const destBefore = await tx.inventory.findUnique({ where: { productId_branchId: { productId: item.productId, branchId: transfer.destBranchId } } });
+          await tx.inventory.update({ where: { productId_branchId: { productId: item.productId, branchId: transfer.sourceBranchId } }, data: { quantity: { decrement: item.quantity } } });
+          await tx.inventory.upsert({ where: { productId_branchId: { productId: item.productId, branchId: transfer.destBranchId } }, create: { productId: item.productId, branchId: transfer.destBranchId, quantity: item.quantity }, update: { quantity: { increment: item.quantity } } });
+          await tx.stockMovement.create({ data: { branchId: transfer.sourceBranchId, productId: item.productId, userId: req.user.id, type: "TRANSFER_OUT", quantity: -item.quantity, quantityBefore: srcBefore.quantity, quantityAfter: srcBefore.quantity - item.quantity, referenceType: "StockTransfer", referenceId: transfer.id, notes: transfer.referenceNumber } });
+          await tx.stockMovement.create({ data: { branchId: transfer.destBranchId, productId: item.productId, userId: req.user.id, type: "TRANSFER_IN", quantity: item.quantity, quantityBefore: destBefore?.quantity || 0, quantityAfter: (destBefore?.quantity || 0) + item.quantity, referenceType: "StockTransfer", referenceId: transfer.id, notes: transfer.referenceNumber } });
+          if (item.imeiNumbers.length) {
+            await tx.productIMEI.updateMany({ where: { imei: { in: item.imeiNumbers } }, data: { branchId: transfer.destBranchId, status: "IN_STOCK" } });
+          }
+        }
+      }
+      return tx.stockTransfer.update({ where: { id: req.params.id }, data, include: { sourceBranch: { select: { name: true } }, destBranch: { select: { name: true } } } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    io.to(`branch:${transfer.sourceBranchId}`).emit("transfer:update", { type: "status", transfer: updated });
+    io.to(`branch:${transfer.destBranchId}`).emit("transfer:update", { type: "status", transfer: updated });
+    res.json(updated);
+  } catch (err) { res.status(err.status || 500).json({ error: err.message }); }
+});
+
+export default router;

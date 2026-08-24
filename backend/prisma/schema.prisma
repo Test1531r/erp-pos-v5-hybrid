@@ -1,0 +1,1059 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  BRANCH_MANAGER
+  CASHIER
+  INVENTORY_MANAGER
+  ACCOUNTANT
+  TECHNICIAN
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum RepairStatus {
+  RECEIVED
+  DIAGNOSING
+  UNDER_REPAIR
+  WAITING_PARTS
+  COMPLETED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  BANK_TRANSFER
+  VODAFONE_CASH
+  INSTAPAY
+  CREDIT
+  MIXED
+}
+
+enum IMEIStatus {
+  IN_STOCK
+  SOLD
+  TRANSFERRED
+  UNDER_REPAIR
+}
+
+enum ExpenseCategory {
+  RENT
+  SALARIES
+  UTILITIES
+  MAINTENANCE
+  TRANSPORT
+  MARKETING
+  SUPPLIES
+  TAXES
+  OTHER
+}
+
+enum FinancialAccountType {
+  CASHBOX
+  CARD
+  BANK
+  VODAFONE_CASH
+  INSTAPAY
+  WALLET
+  OTHER
+}
+
+enum FinancialTransactionType {
+  OPENING_BALANCE
+  SALE
+  SALE_REFUND
+  EXPENSE
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_IN
+  TRANSFER_OUT
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  REPAIR_INCOME
+  OTHER_IN
+  OTHER_OUT
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+enum ReturnStatus {
+  COMPLETED
+  CANCELLED
+}
+
+enum StockMovementType {
+  SALE
+  SALE_RETURN
+  TRANSFER_OUT
+  TRANSFER_IN
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  PURCHASE
+  PURCHASE_RETURN
+  REPAIR_USE
+  TRADE_IN
+  OPENING
+  OTHER
+}
+
+
+enum PurchaseStatus {
+  DRAFT
+  ORDERED
+  PARTIAL
+  RECEIVED
+  CANCELLED
+}
+
+enum ReceivableStatus {
+  OPEN
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PromotionType {
+  PERCENT
+  FIXED
+}
+
+enum TradeInStatus {
+  RECEIVED
+  INSPECTED
+  APPROVED
+  REJECTED
+  SOLD
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ACTION
+  SUCCESS
+}
+
+enum StocktakeStatus {
+  OPEN
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+model Branch {
+  id             String   @id @default(cuid())
+  name           String
+  code           String   @unique
+
+  address        String?
+  city           String?
+  phone          String?
+  email          String?
+  managerName    String?
+  taxNumber      String?
+  commercialRegister String?
+  logo           String?
+
+  cashboxBalance Decimal  @default(0) @db.Decimal(18,2)
+
+  isActive       Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users             User[]
+  inventory         Inventory[]
+  invoices          Invoice[]
+  outgoingTransfers StockTransfer[] @relation("SourceBranch")
+  incomingTransfers StockTransfer[] @relation("DestinationBranch")
+  repairTickets     RepairTicket[]
+  expenses          Expense[]
+  auditLogs         AuditLog[]
+  financialAccounts FinancialAccount[]
+  financialTransactions FinancialTransaction[]
+  cashierShifts     CashierShift[]
+  saleReturns       SaleReturn[]
+  stockMovements    StockMovement[]
+  purchases         Purchase[]
+  purchaseReturns   PurchaseReturn[]
+  supplierLedgers   SupplierLedger[]
+  receivables       CustomerReceivable[]
+  customerPayments  CustomerPayment[]
+  approvals         ApprovalRequest[]
+  tradeIns          TradeIn[]
+  notifications     Notification[]
+  dailyClosings     DailyClosing[]
+  settings          BranchSetting?
+  stocktakes        Stocktake[]
+
+  @@index([name])
+  @@index([city])
+  @@map("branches")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  username     String    @unique
+  email        String?   @unique
+  passwordHash String
+  role         Role      @default(CASHIER)
+  isActive     Boolean   @default(true)
+  branchId     String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  permissions  Json?
+  maxDiscountPct Decimal @default(15) @db.Decimal(5,2)
+
+  branch        Branch?         @relation(fields: [branchId], references: [id])
+  invoices      Invoice[]
+  repairTickets RepairTicket[]
+  transfers     StockTransfer[]
+  expenses      Expense[]
+  auditLogs     AuditLog[]
+  financialTransactions FinancialTransaction[]
+  cashierShifts CashierShift[]
+  saleReturns   SaleReturn[]
+  stockMovements StockMovement[]
+  purchasesCreated Purchase[]
+  purchaseReturnsCreated PurchaseReturn[]
+  customerPayments CustomerPayment[]
+  approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
+  approvalsDecided ApprovalRequest[] @relation("ApprovalDecider")
+  loyaltyTransactions LoyaltyTransaction[]
+  tradeIns TradeIn[]
+  notifications Notification[]
+  dailyClosings DailyClosing[]
+  stocktakesCreated Stocktake[] @relation("StocktakeCreator")
+  stocktakesApproved Stocktake[] @relation("StocktakeApprover")
+
+  @@map("users")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  icon      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  sku         String   @unique
+  barcode     String?  @unique
+  description String?
+  categoryId  String?
+  brand       String?
+  costPrice   Decimal  @default(0) @db.Decimal(18, 2)
+  salePrice   Decimal  @default(0) @db.Decimal(18, 2)
+  hasIMEI     Boolean  @default(false)
+  imageUrl    String?
+  lowStockQty Int      @default(5)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  inventory     Inventory[]
+  imeiRecords   ProductIMEI[]
+  invoiceItems  InvoiceItem[]
+  transferItems TransferItem[]
+  returnItems   SaleReturnItem[]
+  stockMovements StockMovement[]
+  purchaseItems PurchaseItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+  promotionItems PromotionProduct[]
+  tradeIns TradeIn[]
+  repairParts RepairPart[]
+  stocktakeItems StocktakeItem[]
+
+  @@map("products")
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  productId String
+  branchId  String
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
+
+  @@unique([productId, branchId])
+  @@map("inventory")
+}
+
+model ProductIMEI {
+  id           String     @id @default(cuid())
+  productId    String
+  branchId     String
+  imei         String     @unique
+  color        String?
+  storage      String?
+  status       IMEIStatus @default(IN_STOCK)
+  saleInvoiceId String?
+  notes        String?
+  receivedAt   DateTime   @default(now())
+  soldAt       DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("product_imeis")
+}
+
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  phone      String?  @unique
+  email      String?  @unique
+  address    String?
+  city       String?
+  notes      String?
+  totalSpent Decimal  @default(0) @db.Decimal(18, 2)
+  creditBalance Decimal @default(0) @db.Decimal(18,2)
+  creditLimit Decimal @default(0) @db.Decimal(18,2)
+  loyaltyPoints Int @default(0)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  invoices      Invoice[]
+  repairTickets RepairTicket[]
+  receivables CustomerReceivable[]
+  payments CustomerPayment[]
+  loyaltyTransactions LoyaltyTransaction[]
+  tradeIns TradeIn[]
+
+  @@map("customers")
+}
+
+model Supplier {
+  id       String   @id @default(cuid())
+  name     String
+  phone    String?
+  email    String?
+  address  String?
+  city     String?
+  taxNumber String?
+  notes    String?
+  balance  Decimal @default(0) @db.Decimal(18,2)
+  isActive Boolean  @default(true)
+  createdAt DateTime @default(now())
+  purchases Purchase[]
+  ledgers SupplierLedger[]
+  purchaseReturns PurchaseReturn[]
+
+  @@map("suppliers")
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  invoiceNumber  String        @unique
+  clientOperationId String?     @unique
+  branchId       String
+  cashierId      String
+  customerId     String?
+  subtotal       Decimal       @db.Decimal(18, 2)
+  discountAmount Decimal       @default(0) @db.Decimal(18, 2)
+  taxRate        Decimal       @default(0) @db.Decimal(5, 2)
+  taxAmount      Decimal       @default(0) @db.Decimal(18, 2)
+  total          Decimal       @db.Decimal(18, 2)
+  amountPaid     Decimal       @db.Decimal(18, 2)
+  changeGiven    Decimal       @default(0) @db.Decimal(18, 2)
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  cashier  User      @relation(fields: [cashierId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  items    InvoiceItem[]
+  paymentSplits PaymentSplit[]
+  returns  SaleReturn[]
+  receivable CustomerReceivable?
+
+  @@index([branchId, createdAt])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  productId   String
+  productName String
+  sku         String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(18, 2)
+  costPrice   Decimal @db.Decimal(18, 2)
+  discountPct Decimal @default(0) @db.Decimal(5, 2)
+  lineTotal   Decimal @db.Decimal(18, 2)
+  imeiNumbers String[]
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  returnItems SaleReturnItem[]
+
+  @@map("invoice_items")
+}
+
+model StockTransfer {
+  id              String         @id @default(cuid())
+  referenceNumber String         @unique
+  sourceBranchId  String
+  destBranchId    String
+  requestedById   String
+  status          TransferStatus @default(PENDING)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  completedAt     DateTime?
+  updatedAt       DateTime       @updatedAt
+
+  sourceBranch Branch @relation("SourceBranch", fields: [sourceBranchId], references: [id])
+  destBranch   Branch @relation("DestinationBranch", fields: [destBranchId], references: [id])
+  requestedBy  User   @relation(fields: [requestedById], references: [id])
+  items        TransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model TransferItem {
+  id          String   @id @default(cuid())
+  transferId  String
+  productId   String
+  quantity    Int
+  imeiNumbers String[]
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product  Product       @relation(fields: [productId], references: [id])
+
+  @@map("transfer_items")
+}
+
+model RepairTicket {
+  id            String       @id @default(cuid())
+  ticketNumber  String       @unique
+  branchId      String
+  customerId    String?
+  technicianId  String?
+  status        RepairStatus @default(RECEIVED)
+  deviceType    String
+  deviceBrand   String?
+  deviceModel   String?
+  imei          String?
+  problemDesc   String
+  diagnosisNotes String?
+  estimatedCost Decimal?     @db.Decimal(18, 2)
+  actualCost    Decimal?     @db.Decimal(18, 2)
+  deposit       Decimal      @default(0) @db.Decimal(18, 2)
+  isPaid        Boolean      @default(false)
+  receivedAt    DateTime     @default(now())
+  completedAt   DateTime?
+  deliveredAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  photos        String[]
+  accessories   String?
+  conditionNotes String?
+  warrantyDays  Int          @default(0)
+  warrantyUntil DateTime?
+
+  branch     Branch    @relation(fields: [branchId], references: [id])
+  customer   Customer? @relation(fields: [customerId], references: [id])
+  technician User?     @relation(fields: [technicianId], references: [id])
+  parts RepairPart[]
+
+  @@map("repair_tickets")
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  branchId    String
+  userId      String
+  category    ExpenseCategory
+  description String
+  amount      Decimal         @db.Decimal(18, 2)
+  paidAt      DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  financialTransactionId String? @unique
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+  financialTransaction FinancialTransaction? @relation(fields: [financialTransactionId], references: [id])
+
+  @@map("expenses")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  branchId  String?
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  user   User?   @relation(fields: [userId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id])
+
+  @@map("audit_logs")
+}
+
+
+model FinancialAccount {
+  id          String               @id @default(cuid())
+  branchId    String
+  name        String
+  code        String
+  type        FinancialAccountType
+  balance     Decimal              @default(0) @db.Decimal(18, 2)
+  isActive    Boolean              @default(true)
+  allowNegative Boolean            @default(false)
+  notes       String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  branch       Branch                 @relation(fields: [branchId], references: [id])
+  transactions FinancialTransaction[]
+  paymentSplits PaymentSplit[]
+  shiftOpenings CashierShift[] @relation("ShiftOpeningAccount")
+  shiftClosings CashierShift[] @relation("ShiftClosingAccount")
+  saleReturns SaleReturn[]
+  purchaseReturns PurchaseReturn[]
+
+  @@unique([branchId, code])
+  @@index([branchId, type, isActive])
+  @@map("financial_accounts")
+}
+
+model FinancialTransaction {
+  id            String                   @id @default(cuid())
+  branchId      String
+  accountId     String
+  userId        String?
+  type          FinancialTransactionType
+  amount        Decimal                  @db.Decimal(18, 2)
+  direction     String
+  balanceBefore Decimal                  @db.Decimal(18, 2)
+  balanceAfter  Decimal                  @db.Decimal(18, 2)
+  referenceType String?
+  referenceId   String?
+  transferGroupId String?
+  description   String?
+  notes         String?
+  isReversed    Boolean                  @default(false)
+  reversedAt    DateTime?
+  createdAt     DateTime                 @default(now())
+
+  branch   Branch           @relation(fields: [branchId], references: [id])
+  account  FinancialAccount @relation(fields: [accountId], references: [id])
+  user     User?             @relation(fields: [userId], references: [id])
+  expense  Expense?
+
+  @@index([branchId, createdAt])
+  @@index([accountId, createdAt])
+  @@index([referenceType, referenceId])
+  @@index([transferGroupId])
+  @@map("financial_transactions")
+}
+
+model PaymentSplit {
+  id        String   @id @default(cuid())
+  invoiceId String
+  accountId String
+  method    PaymentMethod
+  amount    Decimal  @db.Decimal(18, 2)
+  reference String?
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  account FinancialAccount @relation(fields: [accountId], references: [id])
+
+  @@index([invoiceId])
+  @@map("payment_splits")
+}
+
+model CashierShift {
+  id              String      @id @default(cuid())
+  branchId        String
+  userId          String
+  status          ShiftStatus @default(OPEN)
+  openingAccountId String?
+  closingAccountId String?
+  openingBalance  Decimal     @default(0) @db.Decimal(18, 2)
+  expectedBalance Decimal?    @db.Decimal(18, 2)
+  actualBalance   Decimal?    @db.Decimal(18, 2)
+  variance        Decimal?    @db.Decimal(18, 2)
+  openedAt        DateTime    @default(now())
+  closedAt        DateTime?
+  openingNotes    String?
+  closingNotes    String?
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  openingAccount FinancialAccount? @relation("ShiftOpeningAccount", fields: [openingAccountId], references: [id])
+  closingAccount FinancialAccount? @relation("ShiftClosingAccount", fields: [closingAccountId], references: [id])
+
+  @@index([branchId, status, openedAt])
+  @@index([userId, status])
+  @@map("cashier_shifts")
+}
+
+model SaleReturn {
+  id           String       @id @default(cuid())
+  returnNumber String       @unique
+  invoiceId    String
+  branchId     String
+  userId       String
+  status       ReturnStatus @default(COMPLETED)
+  total        Decimal      @db.Decimal(18, 2)
+  refundAccountId String?
+  reason       String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  cancelledAt  DateTime?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  refundAccount FinancialAccount? @relation(fields: [refundAccountId], references: [id])
+  items SaleReturnItem[]
+
+  @@index([invoiceId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("sale_returns")
+}
+
+model SaleReturnItem {
+  id            String @id @default(cuid())
+  saleReturnId  String
+  invoiceItemId String
+  productId     String
+  quantity      Int
+  unitRefund    Decimal @db.Decimal(18, 2)
+  lineRefund    Decimal @db.Decimal(18, 2)
+  imeiNumbers   String[]
+
+  saleReturn SaleReturn @relation(fields: [saleReturnId], references: [id], onDelete: Cascade)
+  invoiceItem InvoiceItem @relation(fields: [invoiceItemId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleReturnId])
+  @@index([invoiceItemId])
+  @@map("sale_return_items")
+}
+
+model StockMovement {
+  id            String            @id @default(cuid())
+  branchId      String
+  productId     String
+  userId        String?
+  type          StockMovementType
+  quantity      Int
+  quantityBefore Int
+  quantityAfter  Int
+  referenceType String?
+  referenceId   String?
+  notes         String?
+  createdAt     DateTime          @default(now())
+
+  branch Branch @relation(fields: [branchId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([branchId, createdAt])
+  @@index([productId, branchId, createdAt])
+  @@map("stock_movements")
+}
+
+
+model Purchase {
+  id             String @id @default(cuid())
+  purchaseNumber String @unique
+  supplierId     String
+  branchId       String
+  createdById    String
+  status         PurchaseStatus @default(DRAFT)
+  subtotal       Decimal @default(0) @db.Decimal(18,2)
+  taxAmount      Decimal @default(0) @db.Decimal(18,2)
+  total          Decimal @default(0) @db.Decimal(18,2)
+  paidAmount     Decimal @default(0) @db.Decimal(18,2)
+  notes          String?
+  orderedAt      DateTime?
+  receivedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  createdBy User @relation(fields: [createdById], references: [id])
+  items PurchaseItem[]
+  returns PurchaseReturn[]
+
+  @@index([branchId, createdAt])
+  @@index([supplierId, createdAt])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id          String @id @default(cuid())
+  purchaseId  String
+  productId   String
+  quantity    Int
+  receivedQty Int @default(0)
+  unitCost    Decimal @db.Decimal(18,2)
+  lineTotal   Decimal @db.Decimal(18,2)
+  imeiNumbers String[]
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  returnItems PurchaseReturnItem[]
+  @@map("purchase_items")
+}
+
+model SupplierLedger {
+  id            String @id @default(cuid())
+  supplierId    String
+  branchId      String
+  type          String
+  direction     String
+  amount        Decimal @db.Decimal(18,2)
+  balanceBefore Decimal @db.Decimal(18,2)
+  balanceAfter  Decimal @db.Decimal(18,2)
+  referenceType String?
+  referenceId   String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  @@index([supplierId, createdAt])
+  @@map("supplier_ledger")
+}
+
+model CustomerReceivable {
+  id            String @id @default(cuid())
+  customerId    String
+  branchId      String
+  invoiceId     String? @unique
+  originalAmount Decimal @db.Decimal(18,2)
+  paidAmount    Decimal @default(0) @db.Decimal(18,2)
+  remaining     Decimal @db.Decimal(18,2)
+  dueDate       DateTime?
+  status        ReceivableStatus @default(OPEN)
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  customer Customer @relation(fields: [customerId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  installments Installment[]
+  payments CustomerPayment[]
+  @@index([branchId, status, dueDate])
+  @@map("customer_receivables")
+}
+
+model Installment {
+  id           String @id @default(cuid())
+  receivableId String
+  sequence     Int
+  dueDate      DateTime
+  amount       Decimal @db.Decimal(18,2)
+  paidAmount   Decimal @default(0) @db.Decimal(18,2)
+  status       InstallmentStatus @default(PENDING)
+  paidAt       DateTime?
+  receivable CustomerReceivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  @@unique([receivableId, sequence])
+  @@index([dueDate, status])
+  @@map("installments")
+}
+
+model CustomerPayment {
+  id           String @id @default(cuid())
+  receivableId String
+  customerId   String
+  branchId     String
+  userId       String
+  accountId    String?
+  amount       Decimal @db.Decimal(18,2)
+  reference    String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  receivable CustomerReceivable @relation(fields: [receivableId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  @@index([customerId, createdAt])
+  @@map("customer_payments")
+}
+
+model ApprovalRequest {
+  id          String @id @default(cuid())
+  branchId    String
+  requestedById String
+  decidedById String?
+  entityType  String
+  entityId    String?
+  action      String
+  amount      Decimal? @db.Decimal(18,2)
+  reason      String?
+  payload     Json?
+  status      ApprovalStatus @default(PENDING)
+  decisionNotes String?
+  createdAt   DateTime @default(now())
+  decidedAt   DateTime?
+  branch Branch @relation(fields: [branchId], references: [id])
+  requestedBy User @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  decidedBy User? @relation("ApprovalDecider", fields: [decidedById], references: [id])
+  @@index([branchId, status, createdAt])
+  @@map("approval_requests")
+}
+
+model Promotion {
+  id          String @id @default(cuid())
+  name        String
+  code        String? @unique
+  type        PromotionType
+  value       Decimal @db.Decimal(18,2)
+  minTotal    Decimal @default(0) @db.Decimal(18,2)
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean @default(true)
+  usageLimit  Int?
+  usedCount   Int @default(0)
+  createdAt   DateTime @default(now())
+  products PromotionProduct[]
+  @@index([isActive, startsAt, endsAt])
+  @@map("promotions")
+}
+
+model PromotionProduct {
+  id          String @id @default(cuid())
+  promotionId String
+  productId   String
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  @@unique([promotionId, productId])
+  @@map("promotion_products")
+}
+
+model LoyaltyTransaction {
+  id         String @id @default(cuid())
+  customerId String
+  userId     String?
+  points     Int
+  type       String
+  referenceType String?
+  referenceId String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  customer Customer @relation(fields: [customerId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+  @@index([customerId, createdAt])
+  @@map("loyalty_transactions")
+}
+
+model TradeIn {
+  id          String @id @default(cuid())
+  branchId    String
+  customerId  String?
+  userId      String
+  productId   String?
+  deviceBrand String?
+  deviceModel String?
+  imei        String?
+  condition   String?
+  quotedValue Decimal @default(0) @db.Decimal(18,2)
+  finalValue  Decimal @default(0) @db.Decimal(18,2)
+  status      TradeInStatus @default(RECEIVED)
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  branch Branch @relation(fields: [branchId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  product Product? @relation(fields: [productId], references: [id])
+  @@index([branchId, status, createdAt])
+  @@map("trade_ins")
+}
+
+model Notification {
+  id        String @id @default(cuid())
+  branchId  String?
+  userId    String?
+  type      NotificationType @default(INFO)
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean @default(false)
+  createdAt DateTime @default(now())
+  branch Branch? @relation(fields: [branchId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+  @@index([userId, isRead, createdAt])
+  @@index([branchId, createdAt])
+  @@map("notifications")
+}
+
+model DailyClosing {
+  id            String @id @default(cuid())
+  branchId      String
+  userId        String
+  businessDate  DateTime
+  salesTotal    Decimal @default(0) @db.Decimal(18,2)
+  returnsTotal  Decimal @default(0) @db.Decimal(18,2)
+  expensesTotal Decimal @default(0) @db.Decimal(18,2)
+  cashExpected  Decimal @default(0) @db.Decimal(18,2)
+  cashActual    Decimal @default(0) @db.Decimal(18,2)
+  variance      Decimal @default(0) @db.Decimal(18,2)
+  notes         String?
+  closedAt      DateTime @default(now())
+  branch Branch @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  @@unique([branchId, businessDate])
+  @@map("daily_closings")
+}
+
+
+model BranchSetting {
+  id                       String @id @default(cuid())
+  branchId                 String @unique
+  currency                 String @default("EGP")
+  vatRate                  Decimal @default(0) @db.Decimal(5,2)
+  invoiceFooter            String?
+  returnDays               Int @default(7)
+  loyaltyEarnPerAmount     Decimal @default(100) @db.Decimal(18,2)
+  loyaltyPointsPerStep     Int @default(1)
+  loyaltyRedeemPointValue  Decimal @default(0) @db.Decimal(18,2)
+  requireShiftForPOS       Boolean @default(false)
+  requireApprovalExpenseAbove Decimal? @db.Decimal(18,2)
+  requireApprovalDiscountAbove Decimal? @db.Decimal(5,2)
+  updatedAt                DateTime @updatedAt
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  @@map("branch_settings")
+}
+
+model Stocktake {
+  id            String @id @default(cuid())
+  branchId      String
+  createdById   String
+  approvedById  String?
+  referenceNumber String @unique
+  status        StocktakeStatus @default(OPEN)
+  notes         String?
+  startedAt     DateTime @default(now())
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  branch Branch @relation(fields: [branchId], references: [id])
+  createdBy User @relation("StocktakeCreator", fields: [createdById], references: [id])
+  approvedBy User? @relation("StocktakeApprover", fields: [approvedById], references: [id])
+  items StocktakeItem[]
+  @@index([branchId, status, startedAt])
+  @@map("stocktakes")
+}
+
+model StocktakeItem {
+  id          String @id @default(cuid())
+  stocktakeId String
+  productId   String
+  systemQty   Int
+  countedQty  Int?
+  variance    Int?
+  reason      String?
+  stocktake Stocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  @@unique([stocktakeId, productId])
+  @@map("stocktake_items")
+}
+
+model RepairPart {
+  id         String @id @default(cuid())
+  ticketId   String
+  productId  String?
+  name       String
+  quantity   Int @default(1)
+  costPrice  Decimal @default(0) @db.Decimal(18,2)
+  salePrice  Decimal @default(0) @db.Decimal(18,2)
+  ticket RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+  @@map("repair_parts")
+}
+
+
+model PurchaseReturn {
+  id              String @id @default(cuid())
+  returnNumber    String @unique
+  purchaseId      String
+  supplierId      String
+  branchId        String
+  userId          String
+  total           Decimal @db.Decimal(18,2)
+  refundAccountId String?
+  notes           String?
+  createdAt       DateTime @default(now())
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  supplier Supplier @relation(fields: [supplierId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  refundAccount FinancialAccount? @relation(fields: [refundAccountId], references: [id])
+  items PurchaseReturnItem[]
+  @@index([purchaseId, createdAt])
+  @@index([supplierId, createdAt])
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id             String @id @default(cuid())
+  purchaseReturnId String
+  purchaseItemId String
+  productId      String
+  quantity       Int
+  unitCost       Decimal @db.Decimal(18,2)
+  lineTotal      Decimal @db.Decimal(18,2)
+  imeiNumbers    String[]
+  purchaseReturn PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+  purchaseItem PurchaseItem @relation(fields: [purchaseItemId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  @@index([purchaseReturnId])
+  @@map("purchase_return_items")
+}
