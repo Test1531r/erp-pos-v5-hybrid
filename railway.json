@@ -5,7 +5,7 @@
     "buildCommand": "npm ci --prefix backend && npm ci --prefix frontend && npm run build --prefix frontend"
   },
   "deploy": {
-    "preDeployCommand": "npm exec --prefix backend prisma -- db push --schema=backend/prisma/schema.prisma"
+    "preDeployCommand": "npm exec --prefix backend prisma -- db push --schema=backend/prisma/schema.prisma --force-reset",
     "startCommand": "npm start",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 120,
