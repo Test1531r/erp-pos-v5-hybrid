@@ -40,4 +40,8 @@ Thumbs.db
 # Temporary
 tmp/
 temp/
-.cache/
+.cache/release.zip
+release/
+release.zip
+release/
+release.zip

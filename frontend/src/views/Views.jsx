@@ -263,67 +263,349 @@ export function Sales() {
   const load = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page, limit: 20, ...(activeBranch?.id && { branchId: activeBranch.id }), ...(from && { from }), ...(to && { to }) });
+      const params = new URLSearchParams({
+        page,
+        limit: 20,
+        ...(activeBranch?.id && { branchId: activeBranch.id }),
+        ...(from && { from }),
+        ...(to && { to }),
+      });
       const { data } = await api.get(`/invoices?${params}`);
       setInvoices(data.invoices);
       setTotal(data.total);
-    } catch { toast.error("فشل التحميل"); }
+    } catch {
+      toast.error("فشل التحميل");
+    }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [page, from, to, activeBranch?.id]);
+  useEffect(() => {
+    load();
+  }, [page, from, to, activeBranch?.id]);
 
-  const PM_AR = { CASH: "كاش", CARD: "كارت", BANK_TRANSFER: "تحويل", VODAFONE_CASH: "فودافون كاش", INSTAPAY: "إنستاباي", MIXED: "مختلط" };
+  const PM_AR = {
+    CASH: "كاش",
+    CARD: "كارت",
+    BANK_TRANSFER: "تحويل بنكي",
+    VODAFONE_CASH: "فودافون كاش",
+    INSTAPAY: "إنستاباي",
+    MIXED: "مختلط",
+  };
+
+  const handleDelete = async (invoice) => {
+    const ok = window.confirm(
+      `هل أنت متأكد من حذف الفاتورة ${invoice.invoiceNumber}؟\n\nسيتم إرجاع المخزون وعكس التأثير المالي المرتبط بالفاتورة. لا يمكن التراجع عن هذه العملية.`
+    );
+    if (!ok) return;
+
+    try {
+      await api.delete(`/invoices/${invoice.id}`);
+      toast.success("تم حذف الفاتورة وإرجاع تأثيرها بنجاح");
+      if (selected?.id === invoice.id) setSelected(null);
+      await load();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "تعذر حذف الفاتورة");
+    }
+  };
+
+  const handlePrint = async (invoiceId) => {
+    try {
+      const { data: inv } = await api.get(`/invoices/${invoiceId}`);
+      const printWindow = window.open("", "_blank", "width=500,height=750");
+
+      if (!printWindow) {
+        toast.error("تعذر فتح نافذة الطباعة");
+        return;
+      }
+
+      const esc = (value) =>
+        String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+
+      const money = (value) => Number(value || 0).toFixed(2);
+
+      const paymentText =
+        inv.paymentSplits?.length > 0
+          ? inv.paymentSplits
+              .map((p) => `${esc(p.account?.name || PM_AR[p.method] || p.method)}: ${money(p.amount)} ج`)
+              .join(" + ")
+          : PM_AR[inv.paymentMethod] || inv.paymentMethod || "-";
+
+      const itemsHtml = (inv.items || [])
+        .map(
+          (item) => `
+            <div class="item">
+              <div class="item-name">${esc(item.productName)}</div>
+              <div class="row">
+                <span>${item.quantity} × ${money(item.unitPrice)}</span>
+                <strong>${money(item.lineTotal)} ج</strong>
+              </div>
+              ${
+                item.imeiNumbers?.length
+                  ? `<div class="small">IMEI: ${item.imeiNumbers.map(esc).join(", ")}</div>`
+                  : ""
+              }
+            </div>
+            <div class="sep"></div>
+          `
+        )
+        .join("");
+
+      printWindow.document.write(`
+        <!doctype html>
+        <html lang="ar" dir="rtl">
+          <head>
+            <meta charset="UTF-8" />
+            <title>${esc(inv.invoiceNumber)}</title>
+            <style>
+              @page { size: 80mm auto; margin: 4mm; }
+              * { box-sizing: border-box; }
+              body {
+                font-family: Arial, Tahoma, sans-serif;
+                width: 72mm;
+                margin: 0 auto;
+                color: #000;
+                background: #fff;
+                font-size: 12px;
+                line-height: 1.5;
+              }
+              .center { text-align: center; }
+              .bold { font-weight: 700; }
+              .row { display: flex; justify-content: space-between; gap: 8px; }
+              .sep { border-top: 1px dashed #000; margin: 7px 0; }
+              .item { margin: 5px 0; }
+              .item-name { font-weight: 700; margin-bottom: 2px; }
+              .small { font-size: 10px; word-break: break-all; }
+              h2 { margin: 0 0 4px; font-size: 18px; }
+              p { margin: 2px 0; }
+              .total { font-size: 15px; font-weight: 700; }
+            </style>
+          </head>
+          <body>
+            <div class="center">
+              <h2>${esc(inv.branch?.name || "ERP POS")}</h2>
+              ${inv.branch?.address ? `<p>${esc(inv.branch.address)}</p>` : ""}
+              ${inv.branch?.phone ? `<p>${esc(inv.branch.phone)}</p>` : ""}
+              ${inv.branch?.taxNumber ? `<p>الرقم الضريبي: ${esc(inv.branch.taxNumber)}</p>` : ""}
+              <div class="sep"></div>
+              <p class="bold">فاتورة مبيعات</p>
+              <p>${esc(inv.invoiceNumber)}</p>
+              <p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p>
+            </div>
+
+            <div class="sep"></div>
+            <p>العميل: ${esc(inv.customer?.name || "عميل عادي")}</p>
+            <p>الكاشير: ${esc(inv.cashier?.name || "-")}</p>
+            <div class="sep"></div>
+
+            ${itemsHtml}
+
+            <div class="row">
+              <span>المجموع الفرعي</span>
+              <span>${money(inv.subtotal)} ج</span>
+            </div>
+
+            ${
+              Number(inv.discountAmount) > 0
+                ? `<div class="row"><span>الخصم</span><span>-${money(inv.discountAmount)} ج</span></div>`
+                : ""
+            }
+
+            ${
+              Number(inv.taxAmount) > 0
+                ? `<div class="row"><span>الضريبة</span><span>${money(inv.taxAmount)} ج</span></div>`
+                : ""
+            }
+
+            <div class="sep"></div>
+            <div class="row total">
+              <span>الإجمالي</span>
+              <span>${money(inv.total)} ج</span>
+            </div>
+            <div class="row">
+              <span>المدفوع</span>
+              <span>${money(inv.amountPaid)} ج</span>
+            </div>
+
+            ${
+              Number(inv.changeGiven) > 0
+                ? `<div class="row"><span>الباقي</span><span>${money(inv.changeGiven)} ج</span></div>`
+                : ""
+            }
+
+            <div class="sep"></div>
+            <p>طريقة الدفع: ${paymentText}</p>
+            ${inv.notes ? `<p>ملاحظات: ${esc(inv.notes)}</p>` : ""}
+            <div class="sep"></div>
+
+            <div class="center">
+              <p>شكراً لتعاملكم معنا</p>
+            </div>
+
+            <script>
+              window.onload = function () {
+                setTimeout(function () {
+                  window.focus();
+                  window.print();
+                }, 250);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+
+      printWindow.document.close();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "تعذر طباعة الفاتورة");
+    }
+  };
 
   return (
     <div className="p-6" dir="rtl">
       <h2 className="text-2xl font-bold text-slate-800 mb-6">سجل المبيعات</h2>
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
         <div className="p-4 border-b flex gap-3 flex-wrap">
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => {
+              setPage(1);
+              setFrom(e.target.value);
+            }}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
           <span className="text-slate-400 self-center">إلى</span>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          <button onClick={load} className="border border-slate-200 px-4 py-2 rounded-xl text-sm hover:bg-slate-50">بحث</button>
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => {
+              setPage(1);
+              setTo(e.target.value);
+            }}
+            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <button
+            onClick={load}
+            className="border border-slate-200 px-4 py-2 rounded-xl text-sm hover:bg-slate-50"
+          >
+            بحث
+          </button>
           <span className="mr-auto text-sm text-slate-500 self-center">{total} فاتورة</span>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-              <th className="px-4 py-3 font-semibold">رقم الفاتورة</th>
-              <th className="px-4 py-3 font-semibold">العميل</th>
-              <th className="px-4 py-3 font-semibold">الكاشير</th>
-              <th className="px-4 py-3 font-semibold">طريقة الدفع</th>
-              <th className="px-4 py-3 font-semibold">الإجمالي</th>
-              <th className="px-4 py-3 font-semibold">التاريخ</th>
-              <th className="px-4 py-3 font-semibold">تفاصيل</th>
-            </tr></thead>
+            <thead>
+              <tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
+                <th className="px-4 py-3 font-semibold">رقم الفاتورة</th>
+                <th className="px-4 py-3 font-semibold">العميل</th>
+                <th className="px-4 py-3 font-semibold">الكاشير</th>
+                <th className="px-4 py-3 font-semibold">طريقة الدفع</th>
+                <th className="px-4 py-3 font-semibold">الإجمالي</th>
+                <th className="px-4 py-3 font-semibold">التاريخ</th>
+                <th className="px-4 py-3 font-semibold">إجراءات</th>
+              </tr>
+            </thead>
+
             <tbody>
               {invoices.map((inv) => (
                 <tr key={inv.id} className="border-b hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-indigo-600 font-semibold">{inv.invoiceNumber}</td>
-                  <td className="px-4 py-3 text-slate-600">{inv.customer?.name || "عميل عادي"}</td>
+                  <td className="px-4 py-3 font-mono text-indigo-600 font-semibold">
+                    {inv.invoiceNumber}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {inv.customer?.name || "عميل عادي"}
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{inv.cashier?.name}</td>
-                  <td className="px-4 py-3"><Badge color="blue">{PM_AR[inv.paymentMethod] || inv.paymentMethod}</Badge></td>
-                  <td className="px-4 py-3 font-bold text-green-600">{parseFloat(inv.total).toLocaleString()} ج</td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">{new Date(inv.createdAt).toLocaleString("ar-EG")}</td>
-                  <td className="px-4 py-3"><button onClick={() => setSelected(inv)} className="text-indigo-600 hover:underline text-xs">عرض</button></td>
+                  <td className="px-4 py-3">
+                    <Badge color="blue">{PM_AR[inv.paymentMethod] || inv.paymentMethod}</Badge>
+                  </td>
+                  <td className="px-4 py-3 font-bold text-green-600">
+                    {parseFloat(inv.total).toLocaleString()} ج
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">
+                    {new Date(inv.createdAt).toLocaleString("ar-EG")}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <button
+                        onClick={() => setSelected(inv)}
+                        className="text-indigo-600 hover:bg-indigo-50 px-2 py-1.5 rounded-lg text-xs font-medium"
+                      >
+                        عرض
+                      </button>
+                      <button
+                        onClick={() => handlePrint(inv.id)}
+                        className="text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-xs font-medium"
+                        title="طباعة الفاتورة"
+                      >
+                        🖨 طباعة
+                      </button>
+                      <button
+                        onClick={() => handleDelete(inv)}
+                        className="text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-lg text-xs font-medium"
+                        title="حذف الفاتورة"
+                      >
+                        🗑 حذف
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {invoices.length === 0 && !loading && <tr><td colSpan={7} className="text-center py-12 text-slate-400">لا توجد فواتير</td></tr>}
+
+              {invoices.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400">
+                    لا توجد فواتير
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
+
         {total > 20 && (
           <div className="p-4 flex justify-center gap-2">
-            <button disabled={page === 1} onClick={() => setPage(page - 1)} className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50">السابق</button>
+            <button
+              disabled={page === 1}
+              onClick={() => setPage(page - 1)}
+              className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50"
+            >
+              السابق
+            </button>
             <span className="text-sm text-slate-500 self-center">صفحة {page}</span>
-            <button disabled={page * 20 >= total} onClick={() => setPage(page + 1)} className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50">التالي</button>
+            <button
+              disabled={page * 20 >= total}
+              onClick={() => setPage(page + 1)}
+              className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50"
+            >
+              التالي
+            </button>
           </div>
         )}
       </div>
 
       {selected && (
-        <Modal title={`فاتورة: ${selected.invoiceNumber}`} onClose={() => setSelected(null)} footer={<Btn variant="secondary" onClick={() => setSelected(null)}>إغلاق</Btn>}>
+        <Modal
+          title={`فاتورة: ${selected.invoiceNumber}`}
+          onClose={() => setSelected(null)}
+          footer={
+            <>
+              <Btn variant="secondary" onClick={() => setSelected(null)}>
+                إغلاق
+              </Btn>
+              <Btn onClick={() => handlePrint(selected.id)}>🖨 طباعة</Btn>
+              <Btn variant="danger" onClick={() => handleDelete(selected)}>
+                🗑 حذف
+              </Btn>
+            </>
+          }
+        >
           <InvoiceDetail id={selected.id} />
         </Modal>
       )}
@@ -333,36 +615,102 @@ export function Sales() {
 
 function InvoiceDetail({ id }) {
   const [inv, setInv] = useState(null);
-  useEffect(() => { api.get(`/invoices/${id}`).then(({ data }) => setInv(data)).catch(() => toast.error("فشل التحميل")); }, [id]);
-  if (!inv) return <div className="text-center py-8 text-slate-400">جاري التحميل...</div>;
+
+  useEffect(() => {
+    api
+      .get(`/invoices/${id}`)
+      .then(({ data }) => setInv(data))
+      .catch(() => toast.error("فشل التحميل"));
+  }, [id]);
+
+  if (!inv) {
+    return <div className="text-center py-8 text-slate-400">جاري التحميل...</div>;
+  }
+
   return (
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-500 text-xs">الكاشير</p><p className="font-semibold">{inv.cashier?.name}</p></div>
-        <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-500 text-xs">العميل</p><p className="font-semibold">{inv.customer?.name || "عميل عادي"}</p></div>
-        <div className="bg-slate-50 rounded-xl p-3"><p className="text-slate-500 text-xs">طريقة الدفع</p><p className="font-semibold">{inv.paymentMethod}</p></div>
-        <div className="bg-green-50 rounded-xl p-3"><p className="text-slate-500 text-xs">الإجمالي</p><p className="font-bold text-lg text-green-600">{parseFloat(inv.total).toFixed(2)} ج</p></div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-slate-500 text-xs">الكاشير</p>
+          <p className="font-semibold">{inv.cashier?.name}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-slate-500 text-xs">العميل</p>
+          <p className="font-semibold">{inv.customer?.name || "عميل عادي"}</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-3">
+          <p className="text-slate-500 text-xs">طريقة الدفع</p>
+          <p className="font-semibold">{inv.paymentMethod}</p>
+        </div>
+        <div className="bg-green-50 rounded-xl p-3">
+          <p className="text-slate-500 text-xs">الإجمالي</p>
+          <p className="font-bold text-lg text-green-600">
+            {parseFloat(inv.total).toFixed(2)} ج
+          </p>
+        </div>
       </div>
+
       <table className="w-full text-xs">
-        <thead><tr className="border-b text-slate-500"><th className="text-right py-2">المنتج</th><th className="text-center py-2">كمية</th><th className="text-right py-2">سعر</th><th className="text-right py-2">إجمالي</th></tr></thead>
+        <thead>
+          <tr className="border-b text-slate-500">
+            <th className="text-right py-2">المنتج</th>
+            <th className="text-center py-2">كمية</th>
+            <th className="text-right py-2">سعر</th>
+            <th className="text-right py-2">إجمالي</th>
+          </tr>
+        </thead>
         <tbody>
           {inv.items?.map((item) => (
             <tr key={item.id} className="border-b">
-              <td className="py-2">{item.productName}{item.imeiNumbers?.length > 0 && <p className="text-slate-400 font-mono">{item.imeiNumbers.join(", ")}</p>}</td>
+              <td className="py-2">
+                {item.productName}
+                {item.imeiNumbers?.length > 0 && (
+                  <p className="text-slate-400 font-mono">
+                    {item.imeiNumbers.join(", ")}
+                  </p>
+                )}
+              </td>
               <td className="py-2 text-center">{item.quantity}</td>
               <td className="py-2">{parseFloat(item.unitPrice).toFixed(2)}</td>
-              <td className="py-2 font-semibold">{parseFloat(item.lineTotal).toFixed(2)}</td>
+              <td className="py-2 font-semibold">
+                {parseFloat(item.lineTotal).toFixed(2)}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
       <div className="space-y-1 text-sm border-t pt-3">
-        <div className="flex justify-between text-slate-600"><span>مجموع فرعي</span><span>{parseFloat(inv.subtotal).toFixed(2)}</span></div>
-        {parseFloat(inv.discountAmount) > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>-{parseFloat(inv.discountAmount).toFixed(2)}</span></div>}
-        {parseFloat(inv.taxAmount) > 0 && <div className="flex justify-between"><span>ضريبة</span><span>{parseFloat(inv.taxAmount).toFixed(2)}</span></div>}
-        <div className="flex justify-between font-bold text-base border-t pt-2"><span>الإجمالي</span><span className="text-indigo-600">{parseFloat(inv.total).toFixed(2)}</span></div>
-        <div className="flex justify-between"><span>المدفوع</span><span>{parseFloat(inv.amountPaid).toFixed(2)}</span></div>
-        {parseFloat(inv.changeGiven) > 0 && <div className="flex justify-between text-green-600 font-semibold"><span>الباقي</span><span>{parseFloat(inv.changeGiven).toFixed(2)}</span></div>}
+        <div className="flex justify-between text-slate-600">
+          <span>مجموع فرعي</span>
+          <span>{parseFloat(inv.subtotal).toFixed(2)}</span>
+        </div>
+        {parseFloat(inv.discountAmount) > 0 && (
+          <div className="flex justify-between text-green-600">
+            <span>خصم</span>
+            <span>-{parseFloat(inv.discountAmount).toFixed(2)}</span>
+          </div>
+        )}
+        {parseFloat(inv.taxAmount) > 0 && (
+          <div className="flex justify-between">
+            <span>ضريبة</span>
+            <span>{parseFloat(inv.taxAmount).toFixed(2)}</span>
+          </div>
+        )}
+        <div className="flex justify-between font-bold text-base border-t pt-2">
+          <span>الإجمالي</span>
+          <span className="text-indigo-600">{parseFloat(inv.total).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>المدفوع</span>
+          <span>{parseFloat(inv.amountPaid).toFixed(2)}</span>
+        </div>
+        {parseFloat(inv.changeGiven) > 0 && (
+          <div className="flex justify-between text-green-600 font-semibold">
+            <span>الباقي</span>
+            <span>{parseFloat(inv.changeGiven).toFixed(2)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
