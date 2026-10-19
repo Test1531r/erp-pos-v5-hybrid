@@ -30,7 +30,7 @@ router.post("/",async(req,res)=>{
     if(!["CASHIER","BRANCH_MANAGER","SUPER_ADMIN"].includes(req.user.role))
       return res.status(403).json({error:"هذا الدور لا يمكنه طلب اعتماد خصم"});
     amount=new Prisma.Decimal(discountAmount.toFixed(2));
-    safePayload={discountAmount:Number(discountAmount.toFixed(2)),subtotal:Number(subtotal.toFixed(2)),itemCount:Math.max(0,Math.min(100,Number.parseInt(payload?.itemCount,10)||0))};
+    safePayload={discountAmount:Number(discountAmount.toFixed(2)),subtotal:Number(subtotal.toFixed(2)),itemCount:Math.max(0,Math.min(100,Number.parseInt(payload?.itemCount,10)||0)),cartSignature:typeof payload?.cartSignature==="string"?payload.cartSignature.slice(0,4000):""};
   }else{
     amount=req.body.amount==null?null:new Prisma.Decimal(Number(req.body.amount));
     if(amount&&!amount.isFinite())return res.status(400).json({error:"المبلغ غير صالح"});
