@@ -192,9 +192,10 @@ function CheckoutModal({ onClose }) {
   const [discountApprovalId, setDiscountApprovalId] = useState("");
   const [discountApprovalLoading, setDiscountApprovalLoading] = useState(false);
   const [discountApprovalStatus, setDiscountApprovalStatus] = useState("NONE");
+  const [branchDiscountLimit, setBranchDiscountLimit] = useState(null);
   const user = useStore((s) => s.user);
   const discountPct = totals.subtotal > 0 ? (Number(cartDiscount || 0) / totals.subtotal) * 100 : 0;
-  const needsDiscountApproval = user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0);
+  const needsDiscountApproval = user?.role !== "SUPER_ADMIN" && ((user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0)) || (branchDiscountLimit !== null && discountPct > branchDiscountLimit));
   const imeiVal = validateIMEIs();
 
   useEffect(() => {
@@ -221,7 +222,7 @@ function CheckoutModal({ onClose }) {
   }, [discountApprovalId, needsDiscountApproval, discountApprovalStatus]);
 
   useEffect(() => { setAmountPaid(totals.total.toFixed(2)); }, [totals.total]);
-  useEffect(() => { api.get("/finance/accounts").then(({data}) => setAccounts(data)).catch(() => setAccounts([])); }, []);
+  useEffect(() => { Promise.all([api.get("/finance/accounts"), api.get("/settings")]).then(([a, s]) => { setAccounts(a.data); const v=s.data?.requireApprovalDiscountAbove; setBranchDiscountLimit(v === null || v === undefined || v === "" ? null : Number(v)); }).catch(() => { setAccounts([]); setBranchDiscountLimit(null); }); }, []);
 
   const paid = parseFloat(amountPaid) || 0;
   const change = Math.max(0, paid - totals.total);
