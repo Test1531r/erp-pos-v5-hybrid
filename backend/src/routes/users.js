@@ -7,6 +7,7 @@ import { audit } from "../utils/audit.js";
 const router = Router();
 router.use(authenticate);
 const managerAllowedRoles = new Set(["CASHIER", "INVENTORY_MANAGER", "ACCOUNTANT", "TECHNICIAN"]);
+const validRoles = new Set(["SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER", "INVENTORY_MANAGER", "ACCOUNTANT", "TECHNICIAN"]);
 
 router.get("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) => {
   const where = req.user.role === "BRANCH_MANAGER" ? { branchId: req.user.branchId } : {};
@@ -18,6 +19,9 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) =>
   try {
     const { name, username, email, password, role = "CASHIER", branchId } = req.body;
     if (!String(name || "").trim() || !String(username || "").trim()) return res.status(400).json({ error: "الاسم واسم المستخدم مطلوبان" });
+    if (!validRoles.has(role)) return res.status(400).json({ error: "الدور الوظيفي غير صالح" });
+    if (req.body.maxDiscountPct !== undefined && (!Number.isFinite(Number(req.body.maxDiscountPct)) || Number(req.body.maxDiscountPct) < 0 || Number(req.body.maxDiscountPct) > 100)) return res.status(400).json({ error: "حد الخصم يجب أن يكون بين 0 و100" });
+    if (branchId && !(await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }))) return res.status(400).json({ error: "الفرع المحدد غير موجود" });
     if (String(password || "").length < 10) return res.status(400).json({ error: "كلمة المرور يجب ألا تقل عن 10 أحرف" });
     if (req.user.role === "BRANCH_MANAGER" && !managerAllowedRoles.has(role)) return res.status(403).json({ error: "مدير الفرع لا يمكنه إنشاء هذا الدور" });
     const effectiveBranchId = req.user.role === "BRANCH_MANAGER" ? req.user.branchId : (branchId || null);
@@ -31,7 +35,9 @@ router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) 
   try {
     const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true, branchId: true } });
     if (!target) return res.status(404).json({ error: "المستخدم غير موجود" });
-    if (req.user.role === "BRANCH_MANAGER" && target.branchId !== req.user.branchId) return res.status(403).json({ error: "ليس لديك صلاحية على هذا المستخدم" });
+    if (req.user.role === "BRANCH_MANAGER" && (target.branchId !== req.user.branchId || !managerAllowedRoles.has(target.role))) return res.status(403).json({ error: "مدير الفرع يمكنه إدارة موظفي فرعه فقط ولا يمكنه تعديل حسابات الإدارة العليا" });
+    if (req.body.role && !validRoles.has(req.body.role)) return res.status(400).json({ error: "الدور الوظيفي غير صالح" });
+    if (req.body.branchId && !(await prisma.branch.findUnique({ where: { id: req.body.branchId }, select: { id: true } }))) return res.status(400).json({ error: "الفرع المحدد غير موجود" });
     if (req.user.role === "BRANCH_MANAGER" && req.body.role && !managerAllowedRoles.has(req.body.role)) return res.status(403).json({ error: "مدير الفرع لا يمكنه منح هذا الدور" });
     if (req.params.id === req.user.id && req.body.isActive === false) return res.status(400).json({ error: "لا يمكنك تعطيل حسابك الحالي" });
     const data = {};
