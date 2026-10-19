@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../index.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, authorize } from "../middleware/auth.js";
 import { io } from "../index.js";
 import dayjs from "dayjs";
 
@@ -24,13 +24,27 @@ router.get("/", async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"), async (req, res) => {
   try {
     const { destBranchId, items, notes } = req.body;
     const sourceBranchId = req.branchId;
+    if (!sourceBranchId) return res.status(400).json({ error: "يجب تحديد الفرع المصدر أولاً" });
+    if (!destBranchId || typeof destBranchId !== "string") return res.status(400).json({ error: "يجب تحديد الفرع الوجهة" });
     if (sourceBranchId === destBranchId) return res.status(400).json({ error: "الفرع المصدر والوجهة لا يمكن أن يكونا نفس الفرع" });
-
-    const branch = await prisma.branch.findUnique({ where: { id: sourceBranchId }, select: { code: true } });
+    if (!Array.isArray(items) || items.length === 0 || items.length > 100) return res.status(400).json({ error: "أضف من صنف واحد إلى 100 صنف للتحويل" });
+    for (const item of items) {
+      if (!item?.productId || !Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
+        return res.status(400).json({ error: "بيانات الصنف أو الكمية غير صالحة" });
+      }
+      if (item.imeiNumbers !== undefined && (!Array.isArray(item.imeiNumbers) || item.imeiNumbers.some((v) => typeof v !== "string" || !v.trim()))) {
+        return res.status(400).json({ error: "قائمة IMEI غير صالحة" });
+      }
+    }
+    const [branch, destination] = await Promise.all([
+      prisma.branch.findFirst({ where: { id: sourceBranchId, isActive: true }, select: { code: true } }),
+      prisma.branch.findFirst({ where: { id: destBranchId, isActive: true }, select: { id: true } }),
+    ]);
+    if (!branch || !destination) return res.status(400).json({ error: "الفرع المصدر أو الوجهة غير موجود أو غير فعال" });
     const today = dayjs().format("YYYYMMDD");
     const prefix = `TRF-${branch.code}-${today}`;
     const last = await prisma.stockTransfer.findFirst({ where: { referenceNumber: { startsWith: prefix } }, orderBy: { referenceNumber: "desc" } });
@@ -60,7 +74,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.put("/:id/status", async (req, res) => {
+router.put("/:id/status", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"), async (req, res) => {
   try {
     const { status } = req.body;
     if (!["COMPLETED", "CANCELLED"].includes(status)) return res.status(400).json({ error: "الحالة غير صالحة" });
