@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate, authorize("SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER"), requireBranch);
 const METHODS = ["CASH", "CARD", "BANK_TRANSFER", "VODAFONE_CASH", "INSTAPAY"];
 const decimal = (value) => new Prisma.Decimal(value);
+function addMonthsSafely(date, months) { const d = new Date(date); const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + months); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d; }
 
 router.post("/checkout", async (req, res) => {
   const branchId = req.branchId;
@@ -216,15 +217,20 @@ router.post("/checkout", async (req, res) => {
       if (promotion) await tx.promotion.update({ where: { id: promotion.id }, data: { usedCount: { increment: 1 } } });
       if (paymentMethod === "CREDIT") {
         const dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
+        if (dueDate && Number.isNaN(dueDate.getTime())) throw Object.assign(new Error("تاريخ الاستحقاق غير صالح"), { status: 400 });
+        const rawCount = Number(req.body.installmentsCount || 0);
+        if (!Number.isInteger(rawCount) || rawCount < 0 || rawCount > 60) throw Object.assign(new Error("عدد الأقساط يجب أن يكون عددًا صحيحًا من 0 إلى 60"), { status: 400 });
+        const count = rawCount;
+        const requestedFirstDue = req.body.firstDueDate ? new Date(req.body.firstDueDate) : null;
+        if (requestedFirstDue && Number.isNaN(requestedFirstDue.getTime())) throw Object.assign(new Error("تاريخ أول قسط غير صالح"), { status: 400 });
         const rec = await tx.customerReceivable.create({ data: { customerId, branchId, invoiceId: created.id, originalAmount: total, remaining: total, dueDate, notes: notes ? String(notes).slice(0,1000) : null } });
         await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { increment: total } } });
-        const count = Math.max(0, Math.min(60, Number(req.body.installmentsCount || 0)));
         if (count > 0) {
-          const firstDue = req.body.firstDueDate ? new Date(req.body.firstDueDate) : (dueDate || new Date());
+          const firstDue = requestedFirstDue || dueDate || new Date();
           const each = total.div(count);
           let allocated = decimal(0);
           for (let i = 1; i <= count; i++) {
-            const due = new Date(firstDue); due.setMonth(due.getMonth() + i - 1);
+            const due = addMonthsSafely(firstDue, i - 1);
             const val = i === count ? total.sub(allocated) : each.toDecimalPlaces(2); allocated = allocated.add(val);
             await tx.installment.create({ data: { receivableId: rec.id, sequence: i, dueDate: due, amount: val } });
           }
