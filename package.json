@@ -23,7 +23,7 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.erppos.hybrid",
+    "appId": "com.alashry.erp",
     "productName": "Alashry",
     "directories": {
       "output": "release"
