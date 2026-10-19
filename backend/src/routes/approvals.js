@@ -10,7 +10,7 @@ router.use(authenticate,requireBranch);
 
 router.get("/",async(req,res)=>{
   const where={branchId:req.branchId};
-  if(req.query.status)where.status=req.query.status;
+  if(req.query.status){if(!["PENDING","APPROVED","REJECTED"].includes(String(req.query.status)))return res.status(400).json({error:"حالة الموافقة غير صالحة"});where.status=String(req.query.status);}
   const rows=await prisma.approvalRequest.findMany({where,include:{requestedBy:{select:{name:true,role:true}},decidedBy:{select:{name:true}}},orderBy:{createdAt:"desc"},take:200});
   res.json(rows);
 });
@@ -20,12 +20,13 @@ router.post("/",async(req,res)=>{
   if(!entityType||!action)return res.status(400).json({error:"نوع الطلب والإجراء مطلوبان"});
   const safeType=String(entityType).trim().toUpperCase().slice(0,60);
   const safeAction=String(action).trim().toUpperCase().slice(0,80);
+  if(safeType!=="DISCOUNT"||safeAction!=="APPROVE_DISCOUNT")return res.status(400).json({error:"نوع طلب الموافقة غير مدعوم عبر هذا المسار"});
   let safePayload=payload;
   let amount=null;
   if(safeType==="DISCOUNT"&&safeAction==="APPROVE_DISCOUNT"){
     const discountAmount=Number(payload?.discountAmount);
     const subtotal=Number(payload?.subtotal);
-    if(!Number.isFinite(discountAmount)||discountAmount<=0||!Number.isFinite(subtotal)||subtotal<=0||discountAmount>subtotal)
+    if(!Number.isFinite(discountAmount)||discountAmount<=0||!Number.isFinite(subtotal)||subtotal<=0||discountAmount>subtotal||typeof payload?.cartSignature!=="string"||payload.cartSignature.length<1)
       return res.status(400).json({error:"قيمة الخصم أو إجمالي الفاتورة غير صالح"});
     if(!["CASHIER","BRANCH_MANAGER","SUPER_ADMIN"].includes(req.user.role))
       return res.status(403).json({error:"هذا الدور لا يمكنه طلب اعتماد خصم"});
@@ -49,6 +50,8 @@ router.post("/:id/decision",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,
     if(found.requestedById===req.user.id)return res.status(403).json({error:"لا يمكن اعتماد طلب أنشأته بنفسك"});
 
     const result=await prisma.$transaction(async tx=>{
+      const claimed=await tx.approvalRequest.updateMany({where:{id:found.id,status:"PENDING"},data:{status:decision,decidedById:req.user.id,decisionNotes:req.body.notes?String(req.body.notes).slice(0,1000):null,decidedAt:new Date()}});
+      if(claimed.count!==1)throw Object.assign(new Error("تم اتخاذ قرار في هذا الطلب بالفعل"),{status:409});
       let executedEntityId=found.entityId;
       if(decision==="APPROVED" && found.entityType==="DISCOUNT" && found.action==="APPROVE_DISCOUNT"){
         if(!found.payload||!Number.isFinite(Number(found.payload.discountAmount))||Number(found.payload.discountAmount)<=0)
@@ -66,7 +69,7 @@ router.post("/:id/decision",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,
         if(movement.account.type==="CASHBOX")await tx.branch.update({where:{id:req.branchId},data:{cashboxBalance:{decrement:payload.amount}}});
         executedEntityId=created.id;
       }
-      return tx.approvalRequest.update({where:{id:found.id},data:{status:decision,entityId:executedEntityId,decidedById:req.user.id,decisionNotes:req.body.notes||null,decidedAt:new Date()}});
+      return tx.approvalRequest.update({where:{id:found.id},data:{entityId:executedEntityId}});
     });
     await audit(req.user,"APPROVAL_DECISION","ApprovalRequest",result.id,{decision,executedEntityId:result.entityId},req.branchId);
     res.json(result);
