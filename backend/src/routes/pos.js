@@ -103,7 +103,8 @@ router.post("/checkout", async (req, res) => {
         if(!approval) throw Object.assign(new Error("طلب اعتماد الخصم غير معتمد أو مستخدم بالفعل"),{status:403});
         const approvedAmount=Number(approval.payload?.discountAmount);
         const approvedSubtotal=Number(approval.payload?.subtotal);
-        if(Math.abs(approvedAmount-Number(manualDiscount))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009)
+        const cartSignature=lineItems.map(x=>`${x.productId}:${x.quantity}:${decimal(x.unitPrice).toFixed(2)}:${decimal(x.discountPct).toFixed(2)}`).sort().join("|");
+        if(Math.abs(approvedAmount-Number(manualDiscount))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009||approval.payload?.cartSignature!==cartSignature)
           throw Object.assign(new Error("السلة أو مبلغ الخصم تغير بعد طلب الموافقة. اطلب موافقة جديدة"),{status:409});
         req.approvedDiscountRequestId=approval.id;
       }
