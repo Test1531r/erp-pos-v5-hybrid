@@ -88,7 +88,7 @@ export default function Layout() {
                 <Store className="w-4 h-4 text-white" />
               </div>
               <div>
-                <p className="text-white font-bold text-sm leading-tight">ERP-POS</p>
+                <p className="text-white font-bold text-sm leading-tight">{document.documentElement.lang === "en" ? "Alashry" : "العشري"}</p>
                 <p className="text-indigo-400 text-[10px]">{activeBranch?.name || "اختر فرع"}</p>
               </div>
             </div>

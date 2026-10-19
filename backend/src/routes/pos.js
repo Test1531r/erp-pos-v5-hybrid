@@ -11,6 +11,7 @@ const router = Router();
 router.use(authenticate, authorize("SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER"), requireBranch);
 const METHODS = ["CASH", "CARD", "BANK_TRANSFER", "VODAFONE_CASH", "INSTAPAY"];
 const decimal = (value) => new Prisma.Decimal(value);
+function addMonthsSafely(date, months) { const d = new Date(date); const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + months); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return d; }
 
 router.post("/checkout", async (req, res) => {
   const branchId = req.branchId;
@@ -72,6 +73,7 @@ router.post("/checkout", async (req, res) => {
         const discountPctN = money(raw.discountPct || 0, "خصم الصنف");
         if (discountPctN > 100) throw Object.assign(new Error("نسبة خصم الصنف غير صالحة"), { status: 400 });
         if (req.user.role === "CASHIER" && discountPctN > Number(req.user.maxDiscountPct || 0)) throw Object.assign(new Error(`الخصم على "${product.name}" يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
+        if (req.user.role !== "SUPER_ADMIN" && branchSettings.requireApprovalDiscountAbove != null && discountPctN > Number(branchSettings.requireApprovalDiscountAbove)) throw Object.assign(new Error(`خصم الصنف "${product.name}" يتجاوز حد الموافقة (${Number(branchSettings.requireApprovalDiscountAbove)}%). استخدم خصم الفاتورة لطلب اعتماد المدير.`), { status: 403 });
         if (req.user.role === "CASHIER" && !unitPrice.equals(product.salePrice)) throw Object.assign(new Error(`لا تملك صلاحية تعديل سعر "${product.name}"`), { status: 403 });
         const discPct = decimal(discountPctN);
         const gross = unitPrice.mul(quantity);
@@ -96,7 +98,24 @@ router.post("/checkout", async (req, res) => {
         if (promoDiscount.greaterThan(eligible)) promoDiscount = eligible;
       }
       const manualDiscount = decimal(extraDiscountN);
-      if (req.user.role === "CASHIER" && subtotal.greaterThan(0) && manualDiscount.mul(100).div(subtotal).greaterThan(Number(req.user.maxDiscountPct || 0))) throw Object.assign(new Error(`الخصم الإجمالي يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
+      const manualDiscountPct = subtotal.greaterThan(0) ? Number(manualDiscount.mul(100).div(subtotal)) : 0;
+      const userDiscountLimit = Number(req.user.maxDiscountPct || 0);
+      const branchDiscountLimit = branchSettings.requireApprovalDiscountAbove == null ? null : Number(branchSettings.requireApprovalDiscountAbove);
+      const exceedsUserLimit = req.user.role === "CASHIER" && manualDiscountPct > userDiscountLimit;
+      const exceedsBranchLimit = req.user.role !== "SUPER_ADMIN" && branchDiscountLimit !== null && manualDiscountPct > branchDiscountLimit;
+      if (exceedsUserLimit || exceedsBranchLimit) {
+        const approvalId=String(req.body.approvalRequestId||"");
+        const limitLabel=exceedsUserLimit ? userDiscountLimit : branchDiscountLimit;
+        if(!approvalId) throw Object.assign(new Error(`الخصم يتجاوز حد الموافقة (${limitLabel}%). اطلب اعتماد المدير أولاً`),{status:403});
+        const approval=await tx.approvalRequest.findFirst({where:{id:approvalId,branchId,requestedById:req.user.id,entityType:"DISCOUNT",action:"APPROVE_DISCOUNT",status:"APPROVED",entityId:null}});
+        if(!approval) throw Object.assign(new Error("طلب اعتماد الخصم غير معتمد أو مستخدم بالفعل"),{status:403});
+        const approvedAmount=Number(approval.payload?.discountAmount);
+        const approvedSubtotal=Number(approval.payload?.subtotal);
+        const cartSignature=lineItems.map(x=>`${x.productId}:${x.quantity}:${decimal(x.unitPrice).toFixed(2)}:${decimal(x.discountPct).toFixed(2)}`).sort().join("|");
+        if(Math.abs(approvedAmount-Number(manualDiscount))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009||approval.payload?.cartSignature!==cartSignature)
+          throw Object.assign(new Error("السلة أو مبلغ الخصم تغير بعد طلب الموافقة. اطلب موافقة جديدة"),{status:409});
+        req.approvedDiscountRequestId=approval.id;
+      }
       let loyaltyPointsToRedeem = Math.max(0, Number.parseInt(req.body.redeemPoints || 0, 10) || 0);
       let loyaltyDiscount = decimal(0);
       if (loyaltyPointsToRedeem > 0) {
@@ -165,6 +184,11 @@ router.post("/checkout", async (req, res) => {
         include: { items: true, customer: { select: { id: true, name: true } }, branch: { select: { id: true, name: true, code: true } } },
       });
 
+      if(req.approvedDiscountRequestId){
+        const consumed=await tx.approvalRequest.updateMany({where:{id:req.approvedDiscountRequestId,branchId,status:"APPROVED",entityId:null},data:{entityId:created.id}});
+        if(consumed.count!==1) throw Object.assign(new Error("تم استخدام موافقة الخصم بالفعل. اطلب موافقة جديدة"),{status:409});
+      }
+
       for (const item of lineItems) {
         const updated = await tx.inventory.updateMany({ where: { productId: item.productId, branchId, quantity: { gte: item.quantity } }, data: { quantity: { decrement: item.quantity } } });
         if (updated.count !== 1) throw Object.assign(new Error(`تغير مخزون "${item.productName}" أثناء البيع، أعد المحاولة`), { status: 409 });
@@ -200,15 +224,20 @@ router.post("/checkout", async (req, res) => {
       if (promotion) await tx.promotion.update({ where: { id: promotion.id }, data: { usedCount: { increment: 1 } } });
       if (paymentMethod === "CREDIT") {
         const dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
+        if (dueDate && Number.isNaN(dueDate.getTime())) throw Object.assign(new Error("تاريخ الاستحقاق غير صالح"), { status: 400 });
+        const rawCount = Number(req.body.installmentsCount || 0);
+        if (!Number.isInteger(rawCount) || rawCount < 0 || rawCount > 60) throw Object.assign(new Error("عدد الأقساط يجب أن يكون عددًا صحيحًا من 0 إلى 60"), { status: 400 });
+        const count = rawCount;
+        const requestedFirstDue = req.body.firstDueDate ? new Date(req.body.firstDueDate) : null;
+        if (requestedFirstDue && Number.isNaN(requestedFirstDue.getTime())) throw Object.assign(new Error("تاريخ أول قسط غير صالح"), { status: 400 });
         const rec = await tx.customerReceivable.create({ data: { customerId, branchId, invoiceId: created.id, originalAmount: total, remaining: total, dueDate, notes: notes ? String(notes).slice(0,1000) : null } });
         await tx.customer.update({ where: { id: customerId }, data: { creditBalance: { increment: total } } });
-        const count = Math.max(0, Math.min(60, Number(req.body.installmentsCount || 0)));
         if (count > 0) {
-          const firstDue = req.body.firstDueDate ? new Date(req.body.firstDueDate) : (dueDate || new Date());
+          const firstDue = requestedFirstDue || dueDate || new Date();
           const each = total.div(count);
           let allocated = decimal(0);
           for (let i = 1; i <= count; i++) {
-            const due = new Date(firstDue); due.setMonth(due.getMonth() + i - 1);
+            const due = addMonthsSafely(firstDue, i - 1);
             const val = i === count ? total.sub(allocated) : each.toDecimalPlaces(2); allocated = allocated.add(val);
             await tx.installment.create({ data: { receivableId: rec.id, sequence: i, dueDate: due, amount: val } });
           }

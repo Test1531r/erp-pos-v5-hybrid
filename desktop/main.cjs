@@ -1,4 +1,5 @@
 const { app, BrowserWindow, shell } = require("electron");
+app.setName("Alashry");
 const path = require("path");
 const { autoUpdater } = require("electron-updater");
 

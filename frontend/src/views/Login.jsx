@@ -35,8 +35,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur rounded-2xl mb-4 border border-white/20">
             <Smartphone className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white">ERP-POS</h1>
-          <p className="text-indigo-300 mt-1">نظام إدارة المتجر المتكامل</p>
+          <h1 className="text-3xl font-bold text-white">العشري <span className="text-indigo-300">| Alashry</span></h1>
+          <p className="text-indigo-300 mt-1">نظام إدارة الفروع والمبيعات والمخزون</p>
         </div>
 
         {/* Form */}

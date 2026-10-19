@@ -1,4 +1,4 @@
-# ERP-POS V4 Enterprise
+# Alashry | العشري — ERP/POS V5 Hybrid
 
 نسخة V4 تشمل المالية والمحافظ، POS، المشتريات، الآجل والأقساط، الجرد، الموافقات، العروض والولاء، Trade-In، التقارير والأدوات. راجع `CHANGES_V4.md` و`LOCAL_TEST_V4.md`.
 
@@ -26,7 +26,7 @@
 - إلغاء المستخدمين وكلمات المرور التجريبية من الكود والواجهة.
 - Health check حقيقي لقاعدة البيانات + graceful shutdown.
 - تشغيل Frontend وBackend كخدمة Railway واحدة.
-- ملفات Railway/Nixpacks جاهزة ونشر migrations قبل التشغيل.
+- ملفات Railway/Nixpacks جاهزة، مع فحص CI للبناء وصياغة ملفات Backend.
 
 ## تشغيل محلي
 
@@ -69,7 +69,7 @@ DEFAULT_BRANCH_CODE=MAIN
 
 ## Railway
 
-ارفع جذر المشروع إلى GitHub ثم اربطه بـRailway. المشروع يحتوي `railway.json` و`nixpacks.toml`، لذلك Railway سيقوم بتثبيت Backend/Frontend، بناء React، تشغيل Prisma migrations، ثم تشغيل Express الذي يخدم الـAPI والواجهة معاً.
+ارفع جذر المشروع إلى GitHub ثم اربطه بـRailway. المشروع يحتوي `railway.json` و`nixpacks.toml`، لذلك Railway يثبت Backend/Frontend، يبني React، ثم يشغّل Express الذي يخدم الـAPI والواجهة معاً. أمر ما قبل التشغيل الحالي في `railway.json` يستخدم `prisma db push`؛ لا تعتبره آمنًا للإنتاج قبل مراجعة سجل migrations وفحص schema drift وتجربة استعادة نسخة احتياطية.
 
 Environment Variables الأساسية:
 
@@ -93,10 +93,20 @@ GET /health
 ## ملاحظات أمان
 
 - لا ترفع `backend/.env` إلى GitHub.
-- لا تستخدم `prisma db push` على Production؛ استخدم migrations.
+- أمر Railway الحالي ما زال يستخدم `prisma db push`؛ لا تنشر على قاعدة الإنتاج قبل أخذ Backup، ومراجعة migrations/schema drift، واختبار الترحيل والاستعادة على نسخة Staging. بعد ذلك وحّد أمر النشر مع سجل migrations الفعلي بدل تغيير الأمر بشكل أعمى.
 - اجعل `JWT_SECRET` عشوائياً وطويلاً.
 - مدير الفرع لا يستطيع إنشاء/منح دور Super Admin أو Branch Manager.
 - كل عمليات البيع والمخزون الحرجة يعاد التحقق منها في السيرفر؛ لا يتم الوثوق بقيم الواجهة وحدها.
 
-## V5 Hybrid (Web + Windows + limited Offline)
+## Alashry V5 Hybrid (Web + Windows + limited Offline)
 See `V5_HYBRID_GUIDE.md` for Windows desktop build, cloud API configuration, offline-sale rules, and synchronization behavior.
+
+
+## Alashry V5 professional upgrade
+
+- الاسم التجاري في الواجهة: **العشري** بالعربية و**Alashry** بالإنجليزية. الواجهة الحالية عربية؛ لم يتم تنفيذ تعريب/ترجمة إنجليزية كاملة بعد.
+- مركز الموافقات يدعم طلبات اعتماد خصومات نقطة البيع، ويمنع الكاشير من إتمام خصم يتجاوز الحد قبل الموافقة. كما يحتفظ بموافقة الخصم مرتبطة بتفاصيل السلة ويمنع استخدامها أكثر من مرة.
+- إعدادات الفرع تتحقق من حدود الضريبة والخصومات والمصروفات والولاء.
+- جدول الأقساط يتحقق من عدد الأقساط والتواريخ ويعالج تواريخ نهاية الشهر، والتحصيل يحدث رصيد الخزنة عند استلام النقد.
+- GitHub Actions workflow في `.github/workflows/ci.yml` يتحقق من توليد Prisma، وصياغة ملفات Backend، وبناء Frontend.
+- التطوير محفوظ في فرع `professional-v5-upgrade` وPull Request مسودة رقم 1؛ لم يتم دمجه في `main` أو نشره تلقائيًا.
