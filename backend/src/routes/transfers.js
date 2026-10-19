@@ -34,6 +34,7 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
     if (!destBranchId || typeof destBranchId !== "string") return res.status(400).json({ error: "يجب تحديد الفرع الوجهة" });
     if (sourceBranchId === destBranchId) return res.status(400).json({ error: "الفرع المصدر والوجهة لا يمكن أن يكونا نفس الفرع" });
     if (!Array.isArray(items) || items.length === 0 || items.length > 100) return res.status(400).json({ error: "أضف من صنف واحد إلى 100 صنف للتحويل" });
+    if (new Set(items.map((item) => item?.productId)).size !== items.length) return res.status(400).json({ error: "لا تكرر نفس المنتج في أكثر من سطر؛ اجمع الكمية وأرقام IMEI في سطر واحد" });
     for (const item of items) {
       if (!item?.productId || !Number.isSafeInteger(Number(item.quantity)) || Number(item.quantity) <= 0) {
         return res.status(400).json({ error: "بيانات الصنف أو الكمية غير صالحة" });
