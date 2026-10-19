@@ -282,7 +282,7 @@ export const useStore = create(
           return { success: true, invoice: data.invoice, change: data.change };
         } catch (err) {
           const networkFailure = !err.response && (err.code === "ERR_NETWORK" || err.message === "Network Error" || !navigator.onLine);
-          const offlineEligible = paymentMethod === "CASH" && !paymentSplits && cartItems.every((i) => !i.hasIMEI) && !(extra?.promotionCode) && !(extra?.redeemLoyaltyPoints);
+          const offlineEligible = paymentMethod === "CASH" && !paymentSplits && cartItems.every((i) => !i.hasIMEI) && !(extra?.promotionCode) && !(Number(extra?.redeemPoints) > 0);
           if (networkFailure && offlineEligible) {
             const offlineTotals = get().getCartTotals();
             const offlineItems = cartItems.map((i) => ({ productId: i.productId, productName: i.name, sku: i.sku, quantity: i.quantity, unitPrice: i.unitPrice, discountPct: i.discountPct || 0, lineTotal: i.unitPrice * i.quantity * (1 - (i.discountPct || 0) / 100), imeiNumbers: [] }));
