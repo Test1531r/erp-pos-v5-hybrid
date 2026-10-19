@@ -1,4 +1,4 @@
-# ERP-POS V4 Enterprise
+# Alashry | العشري — ERP/POS V5 Hybrid
 
 نسخة V4 تشمل المالية والمحافظ، POS، المشتريات، الآجل والأقساط، الجرد، الموافقات، العروض والولاء، Trade-In، التقارير والأدوات. راجع `CHANGES_V4.md` و`LOCAL_TEST_V4.md`.
 
@@ -98,5 +98,5 @@ GET /health
 - مدير الفرع لا يستطيع إنشاء/منح دور Super Admin أو Branch Manager.
 - كل عمليات البيع والمخزون الحرجة يعاد التحقق منها في السيرفر؛ لا يتم الوثوق بقيم الواجهة وحدها.
 
-## V5 Hybrid (Web + Windows + limited Offline)
+## Alashry V5 Hybrid (Web + Windows + limited Offline)
 See `V5_HYBRID_GUIDE.md` for Windows desktop build, cloud API configuration, offline-sale rules, and synchronization behavior.
