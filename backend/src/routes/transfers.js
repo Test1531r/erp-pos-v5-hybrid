@@ -15,9 +15,11 @@ router.get("/", async (req, res) => {
     const where = {};
     if (branchId) where.OR = [{ sourceBranchId: branchId }, { destBranchId: branchId }];
     if (status) where.status = status;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNumber = Math.max(1, Math.min(1000000, Number.parseInt(page, 10) || 1));
+    const pageSize = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 20));
+    const skip = (pageNumber - 1) * pageSize;
     const [transfers, total] = await prisma.$transaction([
-      prisma.stockTransfer.findMany({ where, include: { sourceBranch: { select: { name: true } }, destBranch: { select: { name: true } }, requestedBy: { select: { name: true } }, _count: { select: { items: true } } }, orderBy: { createdAt: "desc" }, skip, take: parseInt(limit) }),
+      prisma.stockTransfer.findMany({ where, include: { sourceBranch: { select: { name: true } }, destBranch: { select: { name: true } }, requestedBy: { select: { name: true } }, _count: { select: { items: true } } }, orderBy: { createdAt: "desc" }, skip, take: pageSize }),
       prisma.stockTransfer.count({ where }),
     ]);
     res.json({ transfers, total });
@@ -53,10 +55,24 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
 
     const transfer = await prisma.$transaction(async (tx) => {
       for (const item of items) {
+        const product = await tx.product.findFirst({ where: { id: item.productId, isActive: true }, select: { name: true, hasIMEI: true } });
+        if (!product) throw Object.assign(new Error("أحد المنتجات غير موجود أو غير فعال"), { status: 422 });
+        const imeis = Array.isArray(item.imeiNumbers) ? item.imeiNumbers.map((v) => v.trim()) : [];
+        if (product.hasIMEI) {
+          if (imeis.length !== Number(item.quantity) || new Set(imeis).size !== imeis.length) {
+            throw Object.assign(new Error(`يجب تحديد أرقام IMEI فريدة بعدد الكمية للمنتج "${product.name}"`), { status: 422 });
+          }
+          const available = await tx.productIMEI.findMany({
+            where: { imei: { in: imeis }, productId: item.productId, branchId: sourceBranchId, status: "IN_STOCK" },
+            select: { imei: true },
+          });
+          if (available.length !== imeis.length) throw Object.assign(new Error(`أحد أرقام IMEI للمنتج "${product.name}" غير متاح في الفرع المصدر`), { status: 422 });
+        } else if (imeis.length) {
+          throw Object.assign(new Error(`المنتج "${product.name}" لا يستخدم أرقام IMEI`), { status: 422 });
+        }
         const inv = await tx.inventory.findUnique({ where: { productId_branchId: { productId: item.productId, branchId: sourceBranchId } } });
-        if (!inv || inv.quantity < item.quantity) {
-          const p = await tx.product.findUnique({ where: { id: item.productId }, select: { name: true } });
-          throw new Error(`مخزون غير كافٍ للمنتج "${p?.name}"`);
+        if (!inv || inv.quantity < Number(item.quantity)) {
+          throw Object.assign(new Error(`مخزون غير كافٍ للمنتج "${product.name}"`), { status: 422 });
         }
       }
       return tx.stockTransfer.create({
@@ -69,8 +85,9 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
     io.to(`branch:${destBranchId}`).emit("transfer:update", { type: "created", transfer });
     res.status(201).json(transfer);
   } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
     if (err.message.includes("مخزون")) return res.status(422).json({ error: err.message });
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "تعذر إنشاء تحويل المخزون" });
   }
 });
 
