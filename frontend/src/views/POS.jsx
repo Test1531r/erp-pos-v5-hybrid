@@ -191,10 +191,34 @@ function CheckoutModal({ onClose }) {
   const [redeemPoints, setRedeemPoints] = useState(0);
   const [discountApprovalId, setDiscountApprovalId] = useState("");
   const [discountApprovalLoading, setDiscountApprovalLoading] = useState(false);
+  const [discountApprovalStatus, setDiscountApprovalStatus] = useState("NONE");
   const user = useStore((s) => s.user);
   const discountPct = totals.subtotal > 0 ? (Number(cartDiscount || 0) / totals.subtotal) * 100 : 0;
   const needsDiscountApproval = user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0);
   const imeiVal = validateIMEIs();
+
+  useEffect(() => {
+    setDiscountApprovalId("");
+    setDiscountApprovalStatus("NONE");
+  }, [cartDiscount, totals.subtotal, cartItems]);
+
+  useEffect(() => {
+    if (!discountApprovalId || !needsDiscountApproval || discountApprovalStatus === "APPROVED") return;
+    let alive = true;
+    const check = async () => {
+      try {
+        const { data } = await api.get("/approvals?status=APPROVED");
+        const approved = (Array.isArray(data) ? data : []).find(r => r.id === discountApprovalId && !r.entityId);
+        if (alive && approved) {
+          setDiscountApprovalStatus("APPROVED");
+          toast.success("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.");
+        }
+      } catch {}
+    };
+    check();
+    const timer = setInterval(check, 5000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [discountApprovalId, needsDiscountApproval, discountApprovalStatus]);
 
   useEffect(() => { setAmountPaid(totals.total.toFixed(2)); }, [totals.total]);
   useEffect(() => { api.get("/finance/accounts").then(({data}) => setAccounts(data)).catch(() => setAccounts([])); }, []);
@@ -223,7 +247,8 @@ function CheckoutModal({ onClose }) {
         payload: { discountAmount: Number(Number(cartDiscount).toFixed(2)), subtotal: Number(totals.subtotal.toFixed(2)), itemCount: cartItems.length, cartSignature }
       });
       setDiscountApprovalId(data.id);
-      toast.success("تم إرسال طلب الخصم. انتظر موافقة المدير ثم أعد إتمام البيع.");
+      setDiscountApprovalStatus("PENDING");
+      toast.success("تم إرسال طلب الخصم. سيتم التحقق من الموافقة تلقائيًا.");
     } catch (e) {
       toast.error(e.response?.data?.error || "تعذر إرسال طلب الموافقة");
     } finally {
@@ -309,9 +334,9 @@ function CheckoutModal({ onClose }) {
           {needsDiscountApproval && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
               <p className="text-sm font-semibold text-amber-900">هذا الخصم يتجاوز حدك المسموح ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
-              {discountApprovalId && <p className="text-xs text-green-700">رقم طلب الموافقة: {discountApprovalId} — إذا تغيرت السلة أو قيمة الخصم، اطلب موافقة جديدة.</p>}
+              {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، يمكنك إتمام البيع." : "بانتظار اعتماد المدير..."}</p>}
               <button type="button" onClick={requestDiscountApproval} disabled={discountApprovalLoading || !!discountApprovalId} className="w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
-                {discountApprovalLoading ? "جارٍ إرسال الطلب..." : discountApprovalId ? "تم إرسال الطلب — بانتظار المدير" : "طلب موافقة المدير على الخصم"}
+                {discountApprovalLoading ? "جارٍ إرسال الطلب..." : discountApprovalStatus === "APPROVED" ? "تمت الموافقة" : discountApprovalId ? "تم إرسال الطلب — بانتظار المدير" : "طلب موافقة المدير على الخصم"}
               </button>
               <p className="text-xs text-amber-800">بعد اعتماد الطلب، حدّث صفحة الموافقات أو انتظر القرار ثم أعد إتمام البيع.</p>
             </div>
@@ -391,7 +416,7 @@ function CheckoutModal({ onClose }) {
         </div>
 
         <div className="p-5 border-t">
-          <button onClick={handleCheckout} disabled={!canCheckout || checkoutLoading || (needsDiscountApproval && !discountApprovalId)} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-colors">
+          <button onClick={handleCheckout} disabled={!canCheckout || checkoutLoading || (needsDiscountApproval && discountApprovalStatus !== "APPROVED")} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-colors">
             {checkoutLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري المعالجة...</> : <><CheckCircle2 className="w-5 h-5" /> إتمام البيع — {totals.total.toFixed(2)} ج</>}
           </button>
         </div>
