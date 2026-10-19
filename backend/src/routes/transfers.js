@@ -82,7 +82,33 @@ router.put("/:id/status", async (req, res) => {
           await tx.stockMovement.create({ data: { branchId: transfer.sourceBranchId, productId: item.productId, userId: req.user.id, type: "TRANSFER_OUT", quantity: -item.quantity, quantityBefore: srcBefore.quantity, quantityAfter: srcBefore.quantity - item.quantity, referenceType: "StockTransfer", referenceId: transfer.id, notes: transfer.referenceNumber } });
           await tx.stockMovement.create({ data: { branchId: transfer.destBranchId, productId: item.productId, userId: req.user.id, type: "TRANSFER_IN", quantity: item.quantity, quantityBefore: destBefore?.quantity || 0, quantityAfter: (destBefore?.quantity || 0) + item.quantity, referenceType: "StockTransfer", referenceId: transfer.id, notes: transfer.referenceNumber } });
           if (item.imeiNumbers.length) {
-            await tx.productIMEI.updateMany({ where: { imei: { in: item.imeiNumbers } }, data: { branchId: transfer.destBranchId, status: "IN_STOCK" } });
+            if (new Set(item.imeiNumbers).size !== item.imeiNumbers.length || item.imeiNumbers.length !== item.quantity) {
+              throw Object.assign(new Error("أرقام IMEI مكررة أو لا تطابق كمية التحويل"), { status: 422 });
+            }
+            const eligibleImeis = await tx.productIMEI.findMany({
+              where: {
+                imei: { in: item.imeiNumbers },
+                productId: item.productId,
+                branchId: transfer.sourceBranchId,
+                status: "IN_STOCK",
+              },
+              select: { imei: true },
+            });
+            if (eligibleImeis.length !== item.imeiNumbers.length) {
+              throw Object.assign(new Error("أحد أرقام IMEI غير متاح لهذا المنتج في الفرع المصدر"), { status: 409 });
+            }
+            const movedImeis = await tx.productIMEI.updateMany({
+              where: {
+                imei: { in: item.imeiNumbers },
+                productId: item.productId,
+                branchId: transfer.sourceBranchId,
+                status: "IN_STOCK",
+              },
+              data: { branchId: transfer.destBranchId, status: "IN_STOCK" },
+            });
+            if (movedImeis.count !== item.imeiNumbers.length) {
+              throw Object.assign(new Error("تعذر نقل كل أرقام IMEI المطلوبة"), { status: 409 });
+            }
           }
         }
       }
