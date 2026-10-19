@@ -96,7 +96,17 @@ router.post("/checkout", async (req, res) => {
         if (promoDiscount.greaterThan(eligible)) promoDiscount = eligible;
       }
       const manualDiscount = decimal(extraDiscountN);
-      if (req.user.role === "CASHIER" && subtotal.greaterThan(0) && manualDiscount.mul(100).div(subtotal).greaterThan(Number(req.user.maxDiscountPct || 0))) throw Object.assign(new Error(`الخصم الإجمالي يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
+      if (req.user.role === "CASHIER" && subtotal.greaterThan(0) && manualDiscount.mul(100).div(subtotal).greaterThan(Number(req.user.maxDiscountPct || 0))) {
+        const approvalId=String(req.body.approvalRequestId||"");
+        if(!approvalId) throw Object.assign(new Error(`الخصم يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct||0)}%). اطلب موافقة المدير أولاً`),{status:403});
+        const approval=await tx.approvalRequest.findFirst({where:{id:approvalId,branchId,requestedById:req.user.id,entityType:"DISCOUNT",action:"APPROVE_DISCOUNT",status:"APPROVED",entityId:null}});
+        if(!approval) throw Object.assign(new Error("طلب اعتماد الخصم غير معتمد أو مستخدم بالفعل"),{status:403});
+        const approvedAmount=Number(approval.payload?.discountAmount);
+        const approvedSubtotal=Number(approval.payload?.subtotal);
+        if(Math.abs(approvedAmount-Number(manualDiscount))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009)
+          throw Object.assign(new Error("السلة أو مبلغ الخصم تغير بعد طلب الموافقة. اطلب موافقة جديدة"),{status:409});
+        req.approvedDiscountRequestId=approval.id;
+      }
       let loyaltyPointsToRedeem = Math.max(0, Number.parseInt(req.body.redeemPoints || 0, 10) || 0);
       let loyaltyDiscount = decimal(0);
       if (loyaltyPointsToRedeem > 0) {
@@ -164,6 +174,11 @@ router.post("/checkout", async (req, res) => {
         data: { invoiceNumber, clientOperationId, branchId, cashierId: req.user.id, customerId: customerId || null, subtotal, discountAmount: extraDiscount, taxRate: decimal(taxRateN), taxAmount, total, amountPaid: paid, changeGiven: change, paymentMethod, notes: notes ? String(notes).slice(0,1000) : null, items: { create: lineItems.map(({ stockBefore, lowStockQty, ...x }) => x) } },
         include: { items: true, customer: { select: { id: true, name: true } }, branch: { select: { id: true, name: true, code: true } } },
       });
+
+      if(req.approvedDiscountRequestId){
+        const consumed=await tx.approvalRequest.updateMany({where:{id:req.approvedDiscountRequestId,branchId,status:"APPROVED",entityId:null},data:{entityId:created.id}});
+        if(consumed.count!==1) throw Object.assign(new Error("تم استخدام موافقة الخصم بالفعل. اطلب موافقة جديدة"),{status:409});
+      }
 
       for (const item of lineItems) {
         const updated = await tx.inventory.updateMany({ where: { productId: item.productId, branchId, quantity: { gte: item.quantity } }, data: { quantity: { decrement: item.quantity } } });
