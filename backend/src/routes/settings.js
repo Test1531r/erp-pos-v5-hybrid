@@ -4,7 +4,29 @@ import { authenticate, authorize, requireBranch } from "../middleware/auth.js";
 import { audit } from "../utils/audit.js";
 const router=Router();router.use(authenticate,requireBranch);
 router.get("/",async(req,res)=>{const row=await prisma.branchSetting.upsert({where:{branchId:req.branchId},create:{branchId:req.branchId},update:{}});res.json(row)});
-router.put("/",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,res)=>{try{const data={};for(const k of ['currency','invoiceFooter','returnDays','loyaltyEarnPerAmount','loyaltyPointsPerStep','loyaltyRedeemPointValue','requireShiftForPOS','requireApprovalExpenseAbove','requireApprovalDiscountAbove','vatRate'])if(req.body[k]!==undefined)data[k]=req.body[k]===''?null:req.body[k];const row=await prisma.branchSetting.upsert({where:{branchId:req.branchId},create:{branchId:req.branchId,...data},update:data});await audit(req.user,'SETTINGS_UPDATE','BranchSetting',row.id,data,req.branchId);res.json(row)}catch(err){res.status(400).json({error:'تعذر حفظ الإعدادات'})}});
+router.put("/",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,res)=>{try{
+ const data={};
+ const numberField=(key,{min=0,max=1000000000,integer=false,nullable=false}={})=>{
+   if(req.body[key]===undefined)return;
+   if(nullable&&(req.body[key]===null||req.body[key]==="")){data[key]=null;return;}
+   const value=Number(req.body[key]);
+   if(!Number.isFinite(value)||value<min||value>max||(integer&&!Number.isInteger(value)))throw Object.assign(new Error(`قيمة الإعداد ${key} غير صالحة`),{status:400});
+   data[key]=value;
+ };
+ if(req.body.currency!==undefined){if(typeof req.body.currency!=="string"||req.body.currency.trim().length<1||req.body.currency.trim().length>8)return res.status(400).json({error:"رمز العملة يجب أن يكون من 1 إلى 8 أحرف"});data.currency=req.body.currency.trim().toUpperCase();}
+ if(req.body.invoiceFooter!==undefined){if(req.body.invoiceFooter!==null&&typeof req.body.invoiceFooter!=="string")return res.status(400).json({error:"تذييل الفاتورة غير صالح"});data.invoiceFooter=req.body.invoiceFooter===null?null:String(req.body.invoiceFooter).slice(0,1000);}
+ if(req.body.requireShiftForPOS!==undefined){if(typeof req.body.requireShiftForPOS!=="boolean")return res.status(400).json({error:"قيمة إعداد الوردية غير صالحة"});data.requireShiftForPOS=req.body.requireShiftForPOS;}
+ numberField("returnDays",{min:0,max:365,integer:true});
+ numberField("vatRate",{min:0,max:100});
+ numberField("loyaltyEarnPerAmount",{min:0.01,max:1000000000});
+ numberField("loyaltyPointsPerStep",{min:0,max:100000,integer:true});
+ numberField("loyaltyRedeemPointValue",{min:0,max:1000000});
+ numberField("requireApprovalExpenseAbove",{min:0,max:1000000000,nullable:true});
+ numberField("requireApprovalDiscountAbove",{min:0,max:100,nullable:true});
+ const row=await prisma.branchSetting.upsert({where:{branchId:req.branchId},create:{branchId:req.branchId,...data},update:data});
+ await audit(req.user,"SETTINGS_UPDATE","BranchSetting",row.id,data,req.branchId);
+ res.json(row);
+}catch(err){res.status(err.status||400).json({error:err.status?err.message:"تعذر حفظ الإعدادات"});}});
 
 router.get("/backup",authorize("SUPER_ADMIN"),async(req,res)=>{
   try{
