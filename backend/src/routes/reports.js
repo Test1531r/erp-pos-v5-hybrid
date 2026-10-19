@@ -16,18 +16,18 @@ router.get("/dashboard", async (req, res) => {
     const monthEnd = dayjs().endOf("month").toDate();
     const invoiceWhereMonth = { ...bf, createdAt: { gte: monthStart, lte: monthEnd } };
 
-    const [todayAgg, monthAgg, allTimeAgg, pendingRepairs, totalCustomers, expensesMonth, recentSales, repairsByStatus, returnsMonth, receivables, supplierDue, accounts] = await prisma.$transaction([
+    const [todayAgg, monthAgg, allTimeAgg, pendingRepairs, customersWithSales, expensesMonth, recentSales, repairsByStatus, returnsMonth, receivables, supplierPurchases, accounts] = await prisma.$transaction([
       prisma.invoice.aggregate({ where: { ...bf, createdAt: { gte: todayStart, lte: todayEnd } }, _sum: { total: true }, _count: { id: true } }),
       prisma.invoice.aggregate({ where: invoiceWhereMonth, _sum: { total: true, discountAmount: true, taxAmount: true }, _count: { id: true } }),
       prisma.invoice.aggregate({ where: bf, _sum: { total: true } }),
       prisma.repairTicket.count({ where: { ...bf, status: { in: ["RECEIVED", "DIAGNOSING", "UNDER_REPAIR", "WAITING_PARTS"] } } }),
-      prisma.customer.count({ where: { isActive: true } }),
+      prisma.invoice.findMany({ where: { ...bf, customerId: { not: null } }, distinct: ["customerId"], select: { customerId: true } }),
       prisma.expense.aggregate({ where: { ...bf, paidAt: { gte: monthStart, lte: monthEnd } }, _sum: { amount: true } }),
       prisma.invoice.findMany({ where: bf, include: { customer: { select: { name: true } }, _count: { select: { items: true } } }, orderBy: { createdAt: "desc" }, take: 8 }),
       prisma.repairTicket.groupBy({ by: ["status"], where: bf, _count: { id: true } }),
       prisma.saleReturn.aggregate({ where: { ...bf, status: "COMPLETED", createdAt: { gte: monthStart, lte: monthEnd } }, _sum: { total: true } }),
       prisma.customerReceivable.aggregate({ where: { ...bf, status: { in: ["OPEN","PARTIAL","OVERDUE"] } }, _sum: { remaining: true }, _count: { id: true } }),
-      prisma.supplier.aggregate({ _sum: { balance: true } }),
+      prisma.purchase.findMany({ where: { ...(branchId ? { branchId } : {}), status: { not: "CANCELLED" } }, select: { total: true, paidAmount: true } }),
       branchId ? prisma.financialAccount.findMany({ where: { branchId, isActive: true }, select: { id: true, name: true, type: true, balance: true } }) : prisma.financialAccount.findMany({ where: { isActive: true }, select: { id: true, name: true, type: true, balance: true, branchId: true } }),
     ]);
 
@@ -67,9 +67,9 @@ router.get("/dashboard", async (req, res) => {
       today: { revenue: Number(todayAgg._sum.total || 0), count: todayAgg._count.id || 0, averageTicket: todayAgg._count.id ? Number(todayAgg._sum.total || 0) / todayAgg._count.id : 0 },
       month: { revenue, netSales, returns, cogs, grossProfit, expenses, netProfit, count: monthAgg._count.id || 0, discount: Number(monthAgg._sum.discountAmount || 0), tax: Number(monthAgg._sum.taxAmount || 0) },
       allTime: { revenue: Number(allTimeAgg._sum.total || 0) },
-      pendingRepairs, totalCustomers,
+      pendingRepairs, totalCustomers: customersWithSales.length,
       receivables: { amount: Number(receivables._sum.remaining || 0), count: receivables._count.id || 0 },
-      supplierDue: Number(supplierDue._sum.balance || 0),
+      supplierDue: supplierPurchases.reduce((sum, purchase) => sum + Math.max(0, Number(purchase.total || 0) - Number(purchase.paidAmount || 0)), 0),
       inventoryValue,
       accounts: accounts.map(a => ({ ...a, balance: Number(a.balance) })),
       lowStockCount: lowStockItems.length, lowStockItems: lowStockItems.slice(0, 8),
