@@ -97,9 +97,15 @@ router.post("/checkout", async (req, res) => {
         if (promoDiscount.greaterThan(eligible)) promoDiscount = eligible;
       }
       const manualDiscount = decimal(extraDiscountN);
-      if (req.user.role === "CASHIER" && subtotal.greaterThan(0) && manualDiscount.mul(100).div(subtotal).greaterThan(Number(req.user.maxDiscountPct || 0))) {
+      const manualDiscountPct = subtotal.greaterThan(0) ? Number(manualDiscount.mul(100).div(subtotal)) : 0;
+      const userDiscountLimit = Number(req.user.maxDiscountPct || 0);
+      const branchDiscountLimit = branchSettings.requireApprovalDiscountAbove == null ? null : Number(branchSettings.requireApprovalDiscountAbove);
+      const exceedsUserLimit = req.user.role === "CASHIER" && manualDiscountPct > userDiscountLimit;
+      const exceedsBranchLimit = req.user.role !== "SUPER_ADMIN" && branchDiscountLimit !== null && manualDiscountPct > branchDiscountLimit;
+      if (exceedsUserLimit || exceedsBranchLimit) {
         const approvalId=String(req.body.approvalRequestId||"");
-        if(!approvalId) throw Object.assign(new Error(`الخصم يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct||0)}%). اطلب موافقة المدير أولاً`),{status:403});
+        const limitLabel=exceedsUserLimit ? userDiscountLimit : branchDiscountLimit;
+        if(!approvalId) throw Object.assign(new Error(`الخصم يتجاوز حد الموافقة (${limitLabel}%). اطلب اعتماد المدير أولاً`),{status:403});
         const approval=await tx.approvalRequest.findFirst({where:{id:approvalId,branchId,requestedById:req.user.id,entityType:"DISCOUNT",action:"APPROVE_DISCOUNT",status:"APPROVED",entityId:null}});
         if(!approval) throw Object.assign(new Error("طلب اعتماد الخصم غير معتمد أو مستخدم بالفعل"),{status:403});
         const approvedAmount=Number(approval.payload?.discountAmount);
