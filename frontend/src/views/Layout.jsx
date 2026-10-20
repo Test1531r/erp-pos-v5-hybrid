@@ -40,14 +40,13 @@ const NAV = [
 ];
 
 export default function Layout() {
-  const { user, activeBranch, branches, setActiveBranch, sidebarOpen, toggleSidebar, logout, fetchDashboard, fetchCategories, fetchProducts, fetchBranches, isOnline, offlineQueue, setOnlineStatus, syncOfflineQueue, language, setLanguage } = useStore();
+  const { user, activeBranch, branches, setActiveBranch, sidebarOpen, toggleSidebar, logout, fetchDashboard, fetchCategories, fetchProducts, fetchBranches, isOnline, offlineQueue, setOnlineStatus, syncOfflineQueue, language, setLanguage, systemFeatures, setSystemFeatures } = useStore();
   const en = language === "en";
   const t = (ar, english) => en ? english : ar;
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [systemFeatures, setSystemFeatures] = useState({});
 
   const loadNotifications = async () => {
     try { const { data } = await api.get("/growth/notifications"); setNotifications(data || []); } catch {}
