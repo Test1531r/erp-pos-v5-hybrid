@@ -82,7 +82,8 @@ export default function Layout() {
     document.documentElement.dir = en ? "ltr" : "rtl";
   }, [en]);
 
-  const FEATURE_BY_PATH = { "/dashboard":"dashboard", "/sync":"sync", "/pos":"pos", "/inventory":"inventory", "/stock-ledger":"stockLedger", "/purchases":"purchases", "/receivables":"receivables", "/approvals":"approvals", "/growth":"growth", "/closing":"closing", "/tools":"tools", "/stocktake":"stocktake", "/reports":"reports", "/settings":null, "/sales":"sales", "/customers":"customers", "/repairs":"repairs", "/transfers":"transfers", "/expenses":"expenses", "/finance":"finance", "/returns":"returns", "/users":"users", "/branches":"branches" };\n  const navItems = NAV.filter((item) => (!item.roles || item.roles.includes(user?.role)) && (FEATURE_BY_PATH[item.path] == null || systemFeatures[FEATURE_BY_PATH[item.path]] !== false));
+  const FEATURE_BY_PATH = { "/dashboard":"dashboard", "/sync":"sync", "/pos":"pos", "/inventory":"inventory", "/stock-ledger":"stockLedger", "/purchases":"purchases", "/receivables":"receivables", "/approvals":"approvals", "/growth":"growth", "/closing":"closing", "/tools":"tools", "/stocktake":"stocktake", "/reports":"reports", "/settings":null, "/sales":"sales", "/customers":"customers", "/repairs":"repairs", "/transfers":"transfers", "/expenses":"expenses", "/finance":"finance", "/returns":"returns", "/users":"users", "/branches":"branches" };
+  const navItems = NAV.filter((item) => (!item.roles || item.roles.includes(user?.role)) && (FEATURE_BY_PATH[item.path] == null || systemFeatures[FEATURE_BY_PATH[item.path]] !== false));
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
