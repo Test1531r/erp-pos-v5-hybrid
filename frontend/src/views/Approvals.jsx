@@ -5,6 +5,8 @@ import toast from "react-hot-toast";
 
 const statusLabel = { PENDING: "بانتظار الموافقة", APPROVED: "تمت الموافقة", REJECTED: "مرفوض" };
 const typeLabel = { DISCOUNT: "خصم على فاتورة", EXPENSE: "مصروف", TRANSFER: "تحويل مخزون" };
+const statusLabelEn = { PENDING: "Pending approval", APPROVED: "Approved", REJECTED: "Rejected" };
+const typeLabelEn = { DISCOUNT: "Invoice discount", EXPENSE: "Expense", TRANSFER: "Stock transfer" };
 const fmt = v => Number(v || 0).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Approvals() {
