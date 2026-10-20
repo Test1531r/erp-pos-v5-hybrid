@@ -55,10 +55,10 @@ export default function Dashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title=t("مبيعات اليوم", "Today’s Sales") value={`${(today?.revenue || 0).toLocaleString()} ج`} sub={`${today?.count || 0} فاتورة`} icon={DollarSign} color="text-green-600" bg="bg-green-100" />
-        <StatCard title=t("مبيعات الشهر", "Monthly Sales") value={`${(month?.revenue || 0).toLocaleString()} ج`} sub={`صافي الربح: ${(month?.netProfit || 0).toLocaleString()} ج`} icon={TrendingUp} color="text-indigo-600" bg="bg-indigo-100" />
+        <StatCard title={t("مبيعات اليوم", "Today’s Sales")} value={`${(today?.revenue || 0).toLocaleString()} ج`} sub={`${today?.count || 0} فاتورة`} icon={DollarSign} color="text-green-600" bg="bg-green-100" />
+        <StatCard title={t("مبيعات الشهر", "Monthly Sales")} value={`${(month?.revenue || 0).toLocaleString()} ج`} sub={`صافي الربح: ${(month?.netProfit || 0).toLocaleString()} ج`} icon={TrendingUp} color="text-indigo-600" bg="bg-indigo-100" />
         <StatCard title="الصيانة المعلقة" value={pendingRepairs || 0} sub="تحتاج متابعة" icon={Wrench} color="text-orange-600" bg="bg-orange-100" />
-        <StatCard title=t("إجمالي العملاء", "Total customers") value={totalCustomers || 0} icon={Users} color="text-blue-600" bg="bg-blue-100" />
+        <StatCard title={t("إجمالي العملاء", "Total customers")} value={totalCustomers || 0} icon={Users} color="text-blue-600" bg="bg-blue-100" />
       </div>
 
       {/* Second row */}
@@ -66,7 +66,7 @@ export default function Dashboard() {
         <StatCard title="مخزون منخفض" value={lowStockCount || 0} sub="منتجات تحتاج تجديد" icon={AlertTriangle} color="text-red-600" bg="bg-red-100" />
         <StatCard title="صافي الشهر" value={`${(month?.netProfit || 0).toLocaleString()} ج`} sub={`إجمالي الربح: ${(month?.grossProfit || 0).toLocaleString()} ج`} icon={ShoppingBag} color="text-purple-600" bg="bg-purple-100" />
         <StatCard title="مديونيات العملاء" value={`${(receivables?.amount || 0).toLocaleString()} ج`} sub={`${receivables?.count || 0} حساب مفتوح`} icon={Users} color="text-amber-600" bg="bg-amber-100" />
-        <StatCard title=t("قيمة المخزون", "Inventory value") value={`${(inventoryValue || 0).toLocaleString()} ج`} sub={`مستحق الموردين: ${(supplierDue || 0).toLocaleString()} ج`} icon={Package} color="text-cyan-600" bg="bg-cyan-100" />
+        <StatCard title={t("قيمة المخزون", "Inventory value")} value={`${(inventoryValue || 0).toLocaleString()} ج`} sub={`مستحق الموردين: ${(supplierDue || 0).toLocaleString()} ج`} icon={Package} color="text-cyan-600" bg="bg-cyan-100" />
       </div>
 
       {accounts?.length > 0 && (
