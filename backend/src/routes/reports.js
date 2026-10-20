@@ -81,6 +81,60 @@ router.get("/dashboard", async (req, res) => {
   }
 });
 
+router.get("/branch-comparison", async (req, res) => {
+  if (req.user.role !== "SUPER_ADMIN") {
+    return res.status(403).json({ error: "غير مصرح بعرض مقارنة جميع الفروع" });
+  }
+  try {
+    const parseDate = (value, label, endOfDay = false) => {
+      if (value === undefined || value === "") return null;
+      if (typeof value !== "string" || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+        const error = new Error(`تاريخ ${label} غير صالح؛ استخدم YYYY-MM-DD`);
+        error.status = 400;
+        throw error;
+      }
+      const parsed = dayjs(value);
+      if (!parsed.isValid() || parsed.format("YYYY-MM-DD") !== value) {
+        const error = new Error(`تاريخ ${label} غير صالح`);
+        error.status = 400;
+        throw error;
+      }
+      return (endOfDay ? parsed.endOf("day") : parsed.startOf("day")).toDate();
+    };
+    const from = parseDate(req.query.from, "البداية") || dayjs().startOf("month").toDate();
+    const to = parseDate(req.query.to, "النهاية", true) || new Date();
+    if (from > to) return res.status(400).json({ error: "تاريخ البداية يجب أن يسبق تاريخ النهاية" });
+    const branches = await prisma.branch.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true }, orderBy: { name: "asc" } });
+    const rows = await Promise.all(branches.map(async (branch) => {
+      const base = { branchId: branch.id, createdAt: { gte: from, lte: to } };
+      const [sales, returns, expenses, items, purchaseAgg] = await prisma.$transaction([
+        prisma.invoice.aggregate({ where: base, _sum: { total: true }, _count: { id: true } }),
+        prisma.saleReturn.aggregate({ where: { ...base, status: "COMPLETED" }, _sum: { total: true } }),
+        prisma.expense.aggregate({ where: { branchId: branch.id, paidAt: { gte: from, lte: to } }, _sum: { amount: true } }),
+        prisma.invoiceItem.findMany({ where: { invoice: base }, select: { quantity: true, costPrice: true } }),
+        prisma.purchase.aggregate({ where: { branchId: branch.id, createdAt: { gte: from, lte: to }, status: { not: "CANCELLED" } }, _sum: { total: true, paidAmount: true } }),
+      ]);
+      const revenue = Number(sales._sum.total || 0);
+      const returned = Number(returns._sum.total || 0);
+      const netSales = revenue - returned;
+      const cogs = items.reduce((sum, item) => sum + Number(item.costPrice || 0) * Number(item.quantity || 0), 0);
+      const expenseTotal = Number(expenses._sum.amount || 0);
+      const grossProfit = netSales - cogs;
+      return {
+        branchId: branch.id, branchName: branch.name, branchCode: branch.code,
+        revenue, returns: returned, netSales, cogs, grossProfit, expenses: expenseTotal,
+        netProfit: grossProfit - expenseTotal, invoiceCount: sales._count.id || 0,
+        purchases: Number(purchaseAgg._sum.total || 0), purchasePaid: Number(purchaseAgg._sum.paidAmount || 0),
+      };
+    }));
+    res.json({ from, to, branches: rows });
+  } catch (err) {
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    console.error("[Branch comparison report]", err);
+    res.status(500).json({ error: "تعذر إنشاء تقرير مقارنة الفروع" });
+  }
+});
+
 router.get("/profit-loss", requireBranch, async (req,res)=>{
   try{
     const parseDate = (value, label, endOfDay = false) => {
