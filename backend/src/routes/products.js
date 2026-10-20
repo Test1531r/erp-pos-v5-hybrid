@@ -27,8 +27,12 @@ router.get("/", async (req, res) => {
     const include = {
       category: { select: { id: true, name: true, icon: true } },
       inventory: inventoryInclude,
-      ...(view === "management" ? { variants: { where: { isActive: true }, include: { inventory: inventoryInclude }, orderBy: { name: "asc" } } : { parentProduct: { select: { id: true, name: true } } }),
     };
+    if (view === "management") {
+      include.variants = { where: { isActive: true }, include: { inventory: inventoryInclude }, orderBy: { name: "asc" } };
+    } else {
+      include.parentProduct = { select: { id: true, name: true } };
+    }
     const [products, total] = await prisma.$transaction([
       prisma.product.findMany({ where, include, skip, take: limit, orderBy: { name: "asc" } }),
       prisma.product.count({ where }),
