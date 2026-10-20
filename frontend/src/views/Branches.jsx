@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { api } from "../store";
+import { useDialog } from "../components/InteractionProvider.jsx";
 
 function Modal({ title, children, footer, onClose }) {
   return (
@@ -96,6 +97,7 @@ function Field({ label, children }) {
 }
 
 export default function Branches() {
+  const { confirm } = useDialog();
   const [loading, setLoading] = useState(false);
 
   const [branches, setBranches] = useState([]);
@@ -208,7 +210,7 @@ export default function Branches() {
   }
 
   async function deleteBranch(id) {
-    if (!confirm("حذف الفرع؟")) return;
+    if (!(await confirm("حذف الفرع إجراء حساس وقد يؤثر على العمليات المرتبطة به.", { title: "تأكيد حذف الفرع", danger: true, confirmLabel: "حذف الفرع" }))) return;
 
     try {
       await api.delete(`/branches/${id}`);

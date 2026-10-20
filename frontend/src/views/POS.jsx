@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useStore, api } from "../store/index.js";
 import { Search, X, Plus, Minus, Trash2, User, ShoppingCart, CheckCircle2, Loader2, ScanLine, AlertTriangle, Package, Printer, ChevronDown, ChevronUp, Tag, Banknote, CreditCard, Smartphone, QrCode, HandCoins } from "lucide-react";
 import toast from "react-hot-toast";
+import { useDialog } from "../components/InteractionProvider.jsx";
 
 const PAYMENT_METHODS = [
   { value: "CASH", label: "كاش", icon: Banknote, color: "text-green-600", bg: "bg-green-50 border-green-300" },
@@ -526,6 +527,7 @@ function ProductCard({ product, stock, onAdd }) {
 
 // ── MAIN POS ────────────────────────────────────────────────
 export default function POS() {
+  const { confirm } = useDialog();
   const { cartItems, cartCustomer, cartDiscount, cartTaxRate, cartNotes, searchQuery, selectedCategory, categories, activeBranch,
     addToCart, setCustomer, clearCustomer, setDiscount, setTaxRate, setNotes, clearCart, getCartTotals, getFilteredProducts, getStock, setSearch, setCategory, fetchProducts } = useStore();
 
@@ -604,7 +606,7 @@ export default function POS() {
             {cartItems.length > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{itemCount}</span>}
           </div>
           {cartItems.length > 0 && (
-            <button onClick={() => { if (confirm("مسح السلة؟")) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+            <button onClick={async () => { if (await confirm("سيتم حذف جميع الأصناف من السلة الحالية.", { title: "مسح سلة البيع", danger: true, confirmLabel: "مسح السلة" })) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}

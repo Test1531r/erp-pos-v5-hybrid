@@ -3,12 +3,14 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, HashRouter } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import App from "./App.jsx";
+import { InteractionProvider } from "./components/InteractionProvider.jsx";
 import "./index.css";
 
 const Router = window.erpDesktop?.isDesktop ? HashRouter : BrowserRouter;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    <InteractionProvider>
     <Router>
       <App />
       <Toaster
@@ -21,5 +23,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         }}
       />
     </Router>
+    </InteractionProvider>
   </React.StrictMode>
 );
