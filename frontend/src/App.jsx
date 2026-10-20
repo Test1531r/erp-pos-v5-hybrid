@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { api, useStore } from "./store/index.js";
 import toast from "react-hot-toast";
 import { LockKeyhole, RefreshCw } from "lucide-react";
-import { useStore } from "./store/index.js";
 import Login from "./views/Login.jsx";
 import Layout from "./views/Layout.jsx";
 import Dashboard from "./views/Dashboard.jsx";
