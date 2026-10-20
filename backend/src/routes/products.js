@@ -14,7 +14,15 @@ router.get("/", async (req, res) => {
     const { page, limit, skip } = pageParams(req.query, 60, 100);
     const where = { isActive: true };
     const andFilters = [];
-    if (search) andFilters.push({ OR: ["name", "sku", "barcode", "brand", "variantLabel"].map((field) => ({ [field]: { contains: String(search).trim(), mode: "insensitive" } })) });
+    if (search) {
+      const term = String(search).trim();
+      const productSearch = ["name", "sku", "barcode", "brand", "variantLabel"].map((field) => ({ [field]: { contains: term, mode: "insensitive" } }));
+      if (view === "management") {
+        andFilters.push({ OR: [...productSearch, { variants: { some: { isActive: true, OR: productSearch } } }] });
+      } else {
+        andFilters.push({ OR: productSearch });
+      }
+    }
     if (categoryId && categoryId !== "null" && categoryId !== "undefined") where.categoryId = categoryId;
     if (view === "management") {
       where.parentProductId = null;
