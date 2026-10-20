@@ -83,6 +83,16 @@ export function Inventory() {
     const quantity = product.inventory?.[0]?.quantity ?? 0;
     return stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
   });
+  const reorderSuggestions = products
+    .filter((product) => product.isActive !== false && !product.hasIMEI)
+    .map((product) => {
+      const quantity = Number(product.inventory?.[0]?.quantity ?? 0);
+      const minimum = Math.max(0, Number(product.lowStockQty ?? 5));
+      const target = Math.max(minimum + 1, minimum * 2, 1);
+      return { ...product, currentQuantity: quantity, minimumQuantity: minimum, suggestedQuantity: Math.max(0, target - quantity) };
+    })
+    .filter((product) => product.currentQuantity <= product.minimumQuantity && product.suggestedQuantity > 0)
+    .sort((a, b) => a.currentQuantity - b.currentQuantity || a.name.localeCompare(b.name));
 
   const openAdd = () => { setForm({ salePrice: 0, costPrice: 0, lowStockQty: 5, hasIMEI: false, isActive: true }); setModal("add"); };
   const openEdit = (p) => { setSelected(p); setForm({ ...p }); setModal("edit"); };
@@ -140,6 +150,41 @@ export function Inventory() {
           <p className="mt-1 text-2xl font-extrabold text-rose-700">{inventorySummary.outOfStock}</p>
         </button>
       </div>
+
+      {reorderSuggestions.length > 0 && (
+        <section className="mb-5 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 p-4">
+            <div>
+              <h3 className="font-bold text-amber-900">{t("اقتراحات إعادة الطلب", "Reorder suggestions")}</h3>
+              <p className="mt-1 text-xs text-amber-800">{t("اقتراح إرشادي: الكمية المستهدفة ضعف حد المخزون على الأقل، وليست أمر شراء تلقائيًا.", "Planning aid only: target stock is at least twice the low-stock threshold; this does not create a purchase order.")}</p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-800">{reorderSuggestions.length} {t("منتج", "products")}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-50 text-right text-xs text-slate-500">
+                <th className="px-4 py-3">{t("المنتج", "Product")}</th>
+                <th className="px-4 py-3">{t("المتاح", "On hand")}</th>
+                <th className="px-4 py-3">{t("حد التنبيه", "Low-stock limit")}</th>
+                <th className="px-4 py-3">{t("الكمية المقترحة", "Suggested quantity")}</th>
+                <th className="px-4 py-3">{t("إجراء", "Action")}</th>
+              </tr></thead>
+              <tbody>
+                {reorderSuggestions.slice(0, 20).map((product) => (
+                  <tr key={product.id} className="border-t border-slate-100">
+                    <td className="px-4 py-3"><div className="font-semibold text-slate-800">{product.name}</div><div className="text-xs text-slate-400">{product.sku}</div></td>
+                    <td className={`px-4 py-3 font-bold ${product.currentQuantity === 0 ? "text-rose-600" : "text-amber-700"}`}>{product.currentQuantity}</td>
+                    <td className="px-4 py-3">{product.minimumQuantity}</td>
+                    <td className="px-4 py-3 font-bold text-indigo-700">{product.suggestedQuantity}</td>
+                    <td className="px-4 py-3"><Btn variant="secondary" onClick={() => openEdit(product)}>{t("تعديل المنتج", "Edit product")}</Btn></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {reorderSuggestions.length > 20 && <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">{t("يتم عرض أول 20 منتجًا حسب أولوية النقص.", "Showing the first 20 products by stock urgency.")}</p>}
+        </section>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
         <div className="p-4 border-b flex gap-3">
