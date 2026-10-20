@@ -288,7 +288,7 @@ export const useStore = create(
         } catch (err) {
           const networkFailure = !err.response && (err.code === "ERR_NETWORK" || err.message === "Network Error" || !navigator.onLine);
           const offlineEligible = paymentMethod === "CASH" && !paymentSplits && cartItems.every((i) => !i.hasIMEI) && !(extra?.promotionCode) && !(Number(extra?.redeemPoints) > 0);
-          if (networkFailure && offlineEligible) {
+          if (networkFailure && offlineEligible && get().systemFeatures?.offlineMode !== false) {
             const offlineTotals = get().getCartTotals();
             const offlineItems = cartItems.map((i) => ({ productId: i.productId, productName: i.name, sku: i.sku, quantity: i.quantity, unitPrice: i.unitPrice, discountPct: i.discountPct || 0, lineTotal: i.unitPrice * i.quantity * (1 - (i.discountPct || 0) / 100), imeiNumbers: [] }));
             const payload = {
@@ -361,12 +361,14 @@ export const useStore = create(
       // ── HYBRID / OFFLINE SYNC ───────────────
       setOnlineStatus: (value) => set({ isOnline: Boolean(value) }),
       queueOfflineSale: (payload) => {
+        if (get().systemFeatures?.offlineMode === false) return { error: get().language === "en" ? "Offline mode is disabled by the system administrator." : "وضع عدم الاتصال معطل بواسطة مسؤول النظام" };
         const id = (globalThis.crypto?.randomUUID?.() || `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`);
         const op = { id, type: "SALE", status: "PENDING", createdAt: new Date().toISOString(), payload: { ...payload, clientOperationId: id }, error: null };
         set((state) => ({ offlineQueue: [...state.offlineQueue, op] }));
         return op;
       },
       syncOfflineQueue: async () => {
+        if (get().systemFeatures?.offlineMode === false || get().systemFeatures?.sync === false) return;
         if (!get().isOnline || get().syncInProgress || !get().token) return;
         const pending = get().offlineQueue.filter((x) => x.status === "PENDING" || x.status === "FAILED");
         if (!pending.length) { set({ lastSyncAt: new Date().toISOString() }); return; }
