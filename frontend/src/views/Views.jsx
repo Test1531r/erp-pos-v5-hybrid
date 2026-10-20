@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud } from "lucide-react";
+import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
@@ -264,9 +264,11 @@ export function Inventory() {
             <option value="all">{t("كل التصنيفات", "All categories")}</option>
             {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
           </select>
-          <div className="flex items-center gap-1 rounded-xl border border-slate-200 p-1">
-            <button onClick={() => setViewMode("grid")} title={t("عرض البطاقات", "Grid view")} className={`rounded-lg p-2 ${viewMode === "grid" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><LayoutGrid className="h-4 w-4" /></button>
-            <button onClick={() => setViewMode("list")} title={t("عرض الجدول", "Table view")} className={`rounded-lg p-2 ${viewMode === "list" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><ListIcon className="h-4 w-4" /></button>
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 p-1" role="group" aria-label={t("طريقة عرض المنتجات", "Product view mode")}>
+            <button onClick={() => setViewMode("grid")} title={t("بطاقات كبيرة بالصورة", "Large image cards")} aria-pressed={viewMode === "grid"} className={`rounded-lg p-2 ${viewMode === "grid" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><LayoutGrid className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("compact")} title={t("قائمة بصورة صغيرة على الجانب", "Compact rows with side thumbnail")} aria-pressed={viewMode === "compact"} className={`rounded-lg p-2 ${viewMode === "compact" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><Rows3 className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("list")} title={t("جدول كامل", "Full table")} aria-pressed={viewMode === "list"} className={`rounded-lg p-2 ${viewMode === "list" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><ListIcon className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("plain")} title={t("قائمة بدون صور", "List without images")} aria-pressed={viewMode === "plain"} className={`rounded-lg p-2 ${viewMode === "plain" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><EyeOff className="h-4 w-4" /></button>
           </div>
           <button onClick={load} title={t("تحديث", "Refresh")} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50"><RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? "animate-spin" : ""}`} /></button>
         </div>
@@ -290,6 +292,32 @@ export function Inventory() {
               </article>;
             })}
             {visibleProducts.length === 0 && !loading && <div className="col-span-full py-16 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
+          </div>
+        ) : viewMode === "compact" ? (
+          <div className="divide-y divide-slate-100 p-2 sm:p-3">
+            {visibleProducts.map(p => {
+              const qty = p.inventory?.[0]?.quantity ?? 0;
+              const lowStock = qty <= Number(p.lowStockQty ?? 5);
+              return <article key={p.id} className="flex items-center gap-3 rounded-xl p-2 sm:gap-4 sm:p-3 hover:bg-slate-50">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white sm:h-20 sm:w-20">
+                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <Package className="h-7 w-7 text-slate-300" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-800">{p.name}</h3><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge>{qty === 0 && <Badge color="red">{t("نافد", "Out")}</Badge>}</div>
+                  <p className="mt-1 truncate text-xs text-slate-500">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku} · {p.category?.name || t("بدون تصنيف", "Uncategorized")}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="font-bold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</span><span className={`text-sm font-semibold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{t("المخزون:", "Stock:")} {qty}</span>{p.hasIMEI && <span className="text-xs text-blue-600">IMEI</span>}</div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1 sm:flex-row"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-white" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600" title="IMEI">IMEI</button>}</div>
+              </article>;
+            })}
+            {visibleProducts.length === 0 && !loading && <div className="py-14 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
+          </div>
+        ) : viewMode === "plain" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b bg-slate-50 text-right text-xs text-slate-500"><th className="px-4 py-3">{t("اسم المنتج", "Product name")}</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3">{t("التصنيف", "Category")}</th><th className="px-4 py-3">{t("سعر البيع", "Sale price")}</th><th className="px-4 py-3">{t("المخزون", "Stock")}</th><th className="px-4 py-3">{t("الحالة", "Status")}</th><th className="px-4 py-3">{t("إجراءات", "Actions")}</th></tr></thead>
+              <tbody>{visibleProducts.map(p => { const qty = p.inventory?.[0]?.quantity ?? 0; return <tr key={p.id} className="border-b hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td><td className="px-4 py-3 font-mono text-slate-500">{p.sku}</td><td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td><td className="px-4 py-3 font-semibold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</td><td className={`px-4 py-3 font-bold ${qty === 0 ? "text-rose-600" : qty <= Number(p.lowStockQty ?? 5) ? "text-amber-600" : "text-emerald-600"}`}>{qty}</td><td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge></td><td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("تعديل الكمية", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button></div></td></tr>; })}{visibleProducts.length === 0 && !loading && <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>}</tbody>
+            </table>
           </div>
         ) : (
         <div className="overflow-x-auto">
