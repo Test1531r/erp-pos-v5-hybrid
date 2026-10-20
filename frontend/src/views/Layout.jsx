@@ -62,7 +62,10 @@ export default function Layout() {
   }, [activeBranch?.id, user?.id]);
 
   useEffect(() => {
-    const timer = setInterval(loadNotifications, 60000);
+    const timer = setInterval(() => {
+      loadNotifications();
+      api.get("/settings/features").then(r => setSystemFeatures(r.data.features || {})).catch(() => {});
+    }, 60000);
     return () => clearInterval(timer);
   }, [activeBranch?.id]);
 
