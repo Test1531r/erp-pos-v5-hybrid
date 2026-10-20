@@ -14,7 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { api } from "../store";
+import { api, useStore } from "../store";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
 function Modal({ title, children, footer, onClose }) {
@@ -97,6 +97,9 @@ function Field({ label, children }) {
 }
 
 export default function Branches() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { confirm } = useDialog();
   const [loading, setLoading] = useState(false);
 
@@ -236,7 +239,7 @@ export default function Branches() {
   }
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
 
       <div className="flex items-center justify-between mb-6">
 
