@@ -442,12 +442,12 @@ export function Inventory() {
               <Field label="SKU *"><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="SKU-001" /></Field>
               <Field label="باركود"><Input value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="1234567890" /></Field>
             </div>
-            >{modal === "variantAdd" && <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+            {modal === "variantAdd" && <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
               <div className="mb-3 flex items-center gap-2"><div className="rounded-lg bg-violet-100 p-2 text-violet-700"><Layers3 className="h-4 w-4" /></div><div><h4 className="text-sm font-extrabold text-violet-950">{t("مواصفات المتغير", "Variant specification")}</h4><p className="text-xs text-violet-700">{t("اكتب وصفًا واضحًا يظهر للكاشير عند البيع", "Use a clear label cashiers will see at checkout")}</p></div></div>
               <Field label={t("اللون / السعة / المواصفات *", "Color / storage / specification *")}><Input value={form.variantLabel || ""} onChange={e => setForm({ ...form, variantLabel: e.target.value })} placeholder={t("مثال: تيتانيوم طبيعي · 256GB", "e.g. Natural Titanium · 256GB")} /></Field>
               <div className="mt-3 flex flex-wrap gap-2">{["أسود","أبيض","أزرق","أخضر","128GB","256GB","512GB"].map(value => <button key={value} type="button" onClick={() => setForm(current => ({ ...current, variantLabel: current.variantLabel ? current.variantLabel + " · " + value : value }))} className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 hover:border-violet-400 hover:bg-violet-100">{value}</button>)}</div>
               <p className="mt-3 text-xs leading-5 text-violet-700">{t("استخدم الاختصارات ثم عدّل النص. كل نسخة لها SKU وسعر وتكلفة وصورة وحد مخزون مستقل.", "Use a quick option then edit the label. Each variant has its own SKU, price, cost, image and low-stock threshold.")}</p>
-            </div>}</
+            </div>}
             <div className="grid grid-cols-2 gap-3">
               <Field label="سعر البيع"><Input type="number" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></Field>
               <Field label="سعر التكلفة"><Input type="number" value={form.costPrice || ""} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} /></Field>
