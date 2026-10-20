@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useStore, api } from "../store/index.js";
+import { Globe } from "lucide-react";
 import {
   LayoutDashboard, ShoppingCart, Package, Receipt, Users, Wrench,
   ArrowLeftRight, Wallet, UserCog, LogOut, Menu, X, ChevronRight,
@@ -39,7 +40,9 @@ const NAV = [
 ];
 
 export default function Layout() {
-  const { user, activeBranch, branches, setActiveBranch, sidebarOpen, toggleSidebar, logout, fetchDashboard, fetchCategories, fetchProducts, fetchBranches, isOnline, offlineQueue, setOnlineStatus, syncOfflineQueue } = useStore();
+  const { user, activeBranch, branches, setActiveBranch, sidebarOpen, toggleSidebar, logout, fetchDashboard, fetchCategories, fetchProducts, fetchBranches, isOnline, offlineQueue, setOnlineStatus, syncOfflineQueue, language, setLanguage } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const navigate = useNavigate();
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
@@ -73,10 +76,15 @@ export default function Layout() {
 
   const handleLogout = () => { logout(); navigate("/login"); };
 
+  useEffect(() => {
+    document.documentElement.lang = en ? "en" : "ar";
+    document.documentElement.dir = en ? "ltr" : "rtl";
+  }, [en]);
+
   const navItems = NAV.filter((item) => !item.roles || item.roles.includes(user?.role));
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-100" dir="rtl">
+    <div className="flex h-screen overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
       <button onClick={() => navigate("/sync")} className={`fixed bottom-4 left-4 z-50 px-3 py-2 rounded-full shadow-lg text-xs font-bold flex items-center gap-2 ${isOnline ? "bg-green-600 text-white" : "bg-amber-500 text-white"}`}>{isOnline ? <Wifi className="w-4 h-4"/> : <WifiOff className="w-4 h-4"/>}{isOnline ? "Online" : "Offline"}{offlineQueue.filter(x=>x.status==="PENDING").length>0 && ` • ${offlineQueue.filter(x=>x.status==="PENDING").length}`}</button>
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-16"} transition-all duration-300 bg-slate-900 flex flex-col shrink-0 shadow-2xl`}>
@@ -112,7 +120,7 @@ export default function Layout() {
               >
                 {active && <div className="absolute right-0 top-0 bottom-0 w-1 bg-indigo-400 rounded-l-full" />}
                 <Icon className={`w-5 h-5 shrink-0 ${active ? "text-white" : ""}`} />
-                {sidebarOpen && <span className="font-medium">{item.label}</span>}
+                {sidebarOpen && <span className="font-medium">{t(item.label, ({ "لوحة التحكم":"Dashboard", "مركز المزامنة":"Sync Center", "نقطة البيع":"Point of Sale", "المخزون":"Inventory", "حركة المخزون":"Stock Ledger", "المشتريات والموردين":"Purchases & Suppliers", "الآجل والأقساط":"Receivables & Installments", "الموافقات":"Approvals", "العروض و Trade-In":"Promotions & Trade-In", "الإقفال اليومي":"Daily Closing", "الباركود والاستيراد":"Barcode & Import", "الجرد الدوري":"Stocktake", "تقارير الإدارة":"Management Reports", "الإعدادات":"Settings", "المبيعات":"Sales", "العملاء":"Customers", "الصيانة":"Repairs", "نقل المخزون":"Stock Transfers", "المصروفات":"Expenses", "المالية والمحافظ":"Finance & Wallets", "المرتجعات":"Returns", "المستخدمين":"Users", "الفروع":"Branches" })[item.label] || item.label)}</span>}
               </button>
             );
           })}
@@ -146,7 +154,7 @@ export default function Layout() {
         {/* Top bar */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-sm">
           <div>
-            <h1 className="font-bold text-slate-800">{NAV.find((n) => n.path === location.pathname)?.label || "النظام"}</h1>
+            <h1 className="font-bold text-slate-800">{t(NAV.find((n) => n.path === location.pathname)?.label || "النظام", ({ "لوحة التحكم":"Dashboard", "مركز المزامنة":"Sync Center", "نقطة البيع":"Point of Sale", "المخزون":"Inventory", "حركة المخزون":"Stock Ledger", "المشتريات والموردين":"Purchases & Suppliers", "الآجل والأقساط":"Receivables & Installments", "الموافقات":"Approvals", "العروض و Trade-In":"Promotions & Trade-In", "الإقفال اليومي":"Daily Closing", "الباركود والاستيراد":"Barcode & Import", "الجرد الدوري":"Stocktake", "تقارير الإدارة":"Management Reports", "الإعدادات":"Settings", "المبيعات":"Sales", "العملاء":"Customers", "الصيانة":"Repairs", "نقل المخزون":"Stock Transfers", "المصروفات":"Expenses", "المالية والمحافظ":"Finance & Wallets", "المرتجعات":"Returns", "المستخدمين":"Users", "الفروع":"Branches" })[NAV.find((n) => n.path === location.pathname)?.label] || "System")}</h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -155,21 +163,21 @@ export default function Layout() {
                 {notifications.filter(n => !n.isRead).length > 0 && <span className="absolute -top-0.5 -left-0.5 min-w-4 h-4 px-1 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center">{notifications.filter(n => !n.isRead).length}</span>}
               </button>
               {showNotifications && <div className="absolute left-0 top-11 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
-                <div className="px-4 py-3 border-b font-bold text-sm">الإشعارات</div>
+                <div className="px-4 py-3 border-b font-bold text-sm">{t("الإشعارات","Notifications")}</div>
                 <div className="max-h-80 overflow-y-auto">
-                  {notifications.slice(0,20).map(n => <button key={n.id} onClick={async()=>{ if(!n.isRead){await api.post(`/growth/notifications/${n.id}/read`).catch(()=>{}); setNotifications(x=>x.map(v=>v.id===n.id?{...v,isRead:true}:v));} if(n.link){navigate(n.link);setShowNotifications(false);} }} className={`w-full text-right px-4 py-3 border-b hover:bg-slate-50 ${n.isRead ? "bg-white" : "bg-indigo-50/60"}`}>
+                  {notifications.slice(0,20).map(n => <button key={n.id} onClick={async()=>{ if(!n.isRead){await api.post(`/growth/notifications/${n.id}/read`).catch(()=>{}); setNotifications(x=>x.map(v=>v.id===n.id?{...v,isRead:true}:v));} if(n.link){navigate(n.link);setShowNotifications(false);} }} className={`w-full ${en ? "text-left" : "text-right"} px-4 py-3 border-b hover:bg-slate-50 ${n.isRead ? "bg-white" : "bg-indigo-50/60"}`}>
                     <p className="text-sm font-semibold text-slate-800">{n.title}</p><p className="text-xs text-slate-500 mt-0.5">{n.message}</p><p className="text-[10px] text-slate-400 mt-1">{new Date(n.createdAt).toLocaleString()}</p>
                   </button>)}
-                  {!notifications.length && <div className="p-6 text-center text-sm text-slate-400">لا توجد إشعارات</div>}
+                  {!notifications.length && <div className="p-6 text-center text-sm text-slate-400">{t("لا توجد إشعارات","No notifications")}</div>}
                 </div>
               </div>}
             </div>
             <div className="flex items-center gap-1.5 text-xs bg-green-50 text-green-700 px-2.5 py-1 rounded-full font-medium">
-              <Wifi className="w-3 h-3" /> متصل
+              <Wifi className="w-3 h-3" /> {t("متصل","Online")}
             </div>
             {user?.role === "SUPER_ADMIN" && branches.length > 0 ? (
               <select value={activeBranch?.id || ""} onChange={(e) => setActiveBranch(branches.find((b) => b.id === e.target.value) || null)} className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-full font-medium border-0 outline-none">
-                <option value="">كل الفروع / اختر فرعاً</option>
+                <option value="">{t("كل الفروع / اختر فرعاً","All branches / Select a branch")}</option>
                 {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             ) : activeBranch && (
