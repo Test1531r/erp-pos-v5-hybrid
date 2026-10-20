@@ -16,7 +16,7 @@ export default function Growth() {
   const [loyalty, setLoyalty] = useState(null);
   const [loyaltyCustomerId, setLoyaltyCustomerId] = useState("");
   const [p, setP] = useState({ name: "", code: "", type: "PERCENT", value: "", startsAt: "", endsAt: "" });
-  const [t, setT] = useState({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" });
+  const [tradeForm, setT] = useState({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" });
 
   const load = async () => {
     try {
@@ -36,7 +36,7 @@ export default function Growth() {
   };
   const createTrade = async () => {
     try {
-      await api.post("/growth/trade-ins", { ...t, quotedValue: Number(t.quotedValue) });
+      await api.post("/growth/trade-ins", { ...tradeForm, quotedValue: Number(tradeForm.quotedValue) });
       toast.success("تم تسجيل Trade-In"); setT({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" }); load();
     } catch (e) { toast.error(e.response?.data?.error || "تعذر التسجيل"); }
   };
@@ -91,12 +91,12 @@ export default function Growth() {
 
     {tab === "trade" && <>
       <div className="bg-white border rounded-2xl p-4 grid md:grid-cols-7 gap-2">
-        <select className="border rounded-xl px-3" value={t.customerId} onChange={e => setT({ ...t, customerId: e.target.value })}><option value="">{t("العميل (اختياري)", "Customer (optional)")}</option>{customers.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
-        <input className="border rounded-xl px-3" placeholder="الماركة" value={t.deviceBrand} onChange={e => setT({ ...t, deviceBrand: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder="الموديل" value={t.deviceModel} onChange={e => setT({ ...t, deviceModel: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder="IMEI" value={t.imei} onChange={e => setT({ ...t, imei: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder={t("الحالة", "Status")} value={t.condition} onChange={e => setT({ ...t, condition: e.target.value })} />
-        <input type="number" className="border rounded-xl px-3" placeholder={t("التقييم", "Valuation")} value={t.quotedValue} onChange={e => setT({ ...t, quotedValue: e.target.value })} />
+        <select className="border rounded-xl px-3" value={tradeForm.customerId} onChange={e => setT({ ...tradeForm, customerId: e.target.value })}><option value="">{t("العميل (اختياري)", "Customer (optional)")}</option>{customers.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
+        <input className="border rounded-xl px-3" placeholder="الماركة" value={tradeForm.deviceBrand} onChange={e => setT({ ...tradeForm, deviceBrand: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder="الموديل" value={tradeForm.deviceModel} onChange={e => setT({ ...tradeForm, deviceModel: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder="IMEI" value={tradeForm.imei} onChange={e => setT({ ...tradeForm, imei: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder={t("الحالة", "Status")} value={tradeForm.condition} onChange={e => setT({ ...tradeForm, condition: e.target.value })} />
+        <input type="number" className="border rounded-xl px-3" placeholder={t("التقييم", "Valuation")} value={tradeForm.quotedValue} onChange={e => setT({ ...tradeForm, quotedValue: e.target.value })} />
         <button onClick={createTrade} className="bg-indigo-600 text-white rounded-xl"><Plus className="w-4 h-4 inline" /> تسجيل</button>
       </div>
       <div className="grid md:grid-cols-3 gap-3">{trades.map(x => <div key={x.id} className="bg-white border rounded-2xl p-4"><p className="font-bold">{x.deviceBrand} {x.deviceModel}</p><p className="text-xs font-mono text-slate-500">{x.imei || "بدون IMEI"}</p><p className="mt-2">الحالة: {x.status}</p><p className="font-bold text-indigo-600">تقييم: {Number(x.quotedValue).toLocaleString()}</p>{x.product && <p className="text-xs text-green-700 mt-2">مخزون: {x.product.name}</p>}{x.status !== "APPROVED" && <button onClick={() => receiveTrade(x)} className="mt-3 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs flex items-center gap-1"><PackageCheck className="w-4 h-4" />{t("اعتماد وإدخال للمخزون", "Approve and add to inventory")}</button>}</div>)}</div>
