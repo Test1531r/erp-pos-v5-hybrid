@@ -46,6 +46,9 @@ function Badge({ children, color = "slate" }) {
 // INVENTORY
 // ══════════════════════════════════════════════════════════════
 export function Inventory() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { categories, fetchCategories, activeBranch } = useStore();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
@@ -103,9 +106,9 @@ export function Inventory() {
   };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">إدارة المخزون</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المخزون", "Inventory Management")}</h2>
         <Btn onClick={openAdd}><Plus className="w-4 h-4" /> منتج جديد</Btn>
       </div>
 
@@ -122,14 +125,14 @@ export function Inventory() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-                <th className="px-4 py-3 font-semibold">المنتج</th>
+                <th className="px-4 py-3 font-semibold">{t("المنتج", "Product")}</th>
                 <th className="px-4 py-3 font-semibold">SKU</th>
-                <th className="px-4 py-3 font-semibold">التصنيف</th>
-                <th className="px-4 py-3 font-semibold">سعر البيع</th>
-                <th className="px-4 py-3 font-semibold">الكمية</th>
+                <th className="px-4 py-3 font-semibold">{t("التصنيف", "Category")}</th>
+                <th className="px-4 py-3 font-semibold">{t("سعر البيع", "Sale price")}</th>
+                <th className="px-4 py-3 font-semibold">{t("الكمية", "Quantity")}</th>
                 <th className="px-4 py-3 font-semibold">IMEI</th>
-                <th className="px-4 py-3 font-semibold">الحالة</th>
-                <th className="px-4 py-3 font-semibold">إجراءات</th>
+                <th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th>
+                <th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -156,7 +159,7 @@ export function Inventory() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
                         <button onClick={() => openEdit(p)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500" title="تعديل"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => openAdjust(p)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-500 text-xs font-medium px-2">تعديل كمية</button>
+                        <button onClick={() => openAdjust(p)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-500 text-xs font-medium px-2">{t("تعديل كمية", "Adjust quantity")}</button>
                         {p.hasIMEI && <button onClick={() => openIMEI(p)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 text-xs font-medium px-2">+ IMEI</button>}
                       </div>
                     </td>
@@ -164,7 +167,7 @@ export function Inventory() {
                 );
               })}
               {products.length === 0 && !loading && (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">لا توجد منتجات</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>
               )}
             </tbody>
           </table>
@@ -173,7 +176,7 @@ export function Inventory() {
 
       {/* Add/Edit Modal */}
       {(modal === "add" || modal === "edit") && (
-        <Modal title={modal === "add" ? "إضافة منتج جديد" : "تعديل المنتج"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleSave}>حفظ</Btn></>}>
+        <Modal title={modal === "add" ? "إضافة منتج جديد" : "تعديل المنتج"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="اسم المنتج *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم المنتج" /></Field>
             <div className="grid grid-cols-2 gap-3">
@@ -187,7 +190,7 @@ export function Inventory() {
             <div className="grid grid-cols-2 gap-3">
               <Field label="التصنيف">
                 <Select value={form.categoryId || ""} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                  <option value="">بدون تصنيف</option>
+                  <option value="">{t("بدون تصنيف", "Uncategorized")}</option>
                   {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </Select>
               </Field>
@@ -200,11 +203,11 @@ export function Inventory() {
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.hasIMEI || false} onChange={(e) => setForm({ ...form, hasIMEI: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-medium text-slate-700">يتطلب رقم IMEI</span>
+                <span className="text-sm font-medium text-slate-700">{t("يتطلب رقم IMEI", "IMEI required")}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-medium text-slate-700">فعال</span>
+                <span className="text-sm font-medium text-slate-700">{t("فعال", "Active")}</span>
               </label>
             </div>
           </div>
@@ -213,13 +216,13 @@ export function Inventory() {
 
       {/* Adjust Modal */}
       {modal === "adjust" && (
-        <Modal title={`تعديل مخزون: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleAdjust}>تنفيذ</Btn></>}>
+        <Modal title={`تعديل مخزون: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleAdjust}>{t("تنفيذ", "Apply")}</Btn></>}>
           <div className="space-y-3">
             <Field label="نوع التعديل">
               <Select value={adjustForm.type} onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })}>
-                <option value="ADD">إضافة للمخزون</option>
-                <option value="REMOVE">خصم من المخزون</option>
-                <option value="SET">تحديد كمية محددة</option>
+                <option value="ADD">{t("إضافة للمخزون", "Add to stock")}</option>
+                <option value="REMOVE">{t("خصم من المخزون", "Remove from stock")}</option>
+                <option value="SET">{t("تحديد كمية محددة", "Set exact quantity")}</option>
               </Select>
             </Field>
             <Field label="الكمية"><Input type="number" value={adjustForm.quantity} onChange={(e) => setAdjustForm({ ...adjustForm, quantity: parseInt(e.target.value) })} min={1} /></Field>
@@ -230,7 +233,7 @@ export function Inventory() {
 
       {/* IMEI Modal */}
       {modal === "imei" && (
-        <Modal title={`إضافة IMEI: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleAddIMEI}>حفظ</Btn></>}>
+        <Modal title={`إضافة IMEI: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleAddIMEI}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             {imeiList.map((item, i) => (
               <div key={i} className="grid grid-cols-3 gap-2 items-center">
@@ -251,6 +254,9 @@ export function Inventory() {
 // SALES
 // ══════════════════════════════════════════════════════════════
 export function Sales() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { activeBranch } = useStore();
   const [invoices, setInvoices] = useState([]);
   const [total, setTotal] = useState(0);
@@ -357,7 +363,7 @@ export function Sales() {
 
       printWindow.document.write(`
         <!doctype html>
-        <html lang="ar" dir="rtl">
+        <html lang="ar" dir={en ? "ltr" : "rtl"}>
           <head>
             <meta charset="UTF-8" />
             <title>${esc(inv.invoiceNumber)}</title>
@@ -392,7 +398,7 @@ export function Sales() {
               ${inv.branch?.phone ? `<p>${esc(inv.branch.phone)}</p>` : ""}
               ${inv.branch?.taxNumber ? `<p>الرقم الضريبي: ${esc(inv.branch.taxNumber)}</p>` : ""}
               <div class="sep"></div>
-              <p class="bold">فاتورة مبيعات</p>
+              <p class="bold">{t("فاتورة مبيعات", "Sales invoice")}</p>
               <p>${esc(inv.invoiceNumber)}</p>
               <p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p>
             </div>
@@ -405,35 +411,35 @@ export function Sales() {
             ${itemsHtml}
 
             <div class="row">
-              <span>المجموع الفرعي</span>
+              <span>{t("المجموع الفرعي", "Subtotal")}</span>
               <span>${money(inv.subtotal)} ج</span>
             </div>
 
             ${
               Number(inv.discountAmount) > 0
-                ? `<div class="row"><span>الخصم</span><span>-${money(inv.discountAmount)} ج</span></div>`
+                ? `<div class="row"><span>{t("الخصم", "Discount")}</span><span>-${money(inv.discountAmount)} ج</span></div>`
                 : ""
             }
 
             ${
               Number(inv.taxAmount) > 0
-                ? `<div class="row"><span>الضريبة</span><span>${money(inv.taxAmount)} ج</span></div>`
+                ? `<div class="row"><span>{t("الضريبة", "Tax")}</span><span>${money(inv.taxAmount)} ج</span></div>`
                 : ""
             }
 
             <div class="sep"></div>
             <div class="row total">
-              <span>الإجمالي</span>
+              <span>{t("الإجمالي", "Total")}</span>
               <span>${money(inv.total)} ج</span>
             </div>
             <div class="row">
-              <span>المدفوع</span>
+              <span>{t("المدفوع", "Paid")}</span>
               <span>${money(inv.amountPaid)} ج</span>
             </div>
 
             ${
               Number(inv.changeGiven) > 0
-                ? `<div class="row"><span>الباقي</span><span>${money(inv.changeGiven)} ج</span></div>`
+                ? `<div class="row"><span>{t("الباقي", "Change due")}</span><span>${money(inv.changeGiven)} ج</span></div>`
                 : ""
             }
 
@@ -443,7 +449,7 @@ export function Sales() {
             <div class="sep"></div>
 
             <div class="center">
-              <p>شكراً لتعاملكم معنا</p>
+              <p>{t("شكراً لتعاملكم معنا", "Thank you for your business")}</p>
             </div>
 
             <script>
@@ -465,8 +471,8 @@ export function Sales() {
   };
 
   return (
-    <div className="p-6" dir="rtl">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">سجل المبيعات</h2>
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
+      <h2 className="text-2xl font-bold text-slate-800 mb-6">{t("سجل المبيعات", "Sales history")}</h2>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
         <div className="p-4 border-b flex gap-3 flex-wrap">
@@ -502,13 +508,13 @@ export function Sales() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-                <th className="px-4 py-3 font-semibold">رقم الفاتورة</th>
-                <th className="px-4 py-3 font-semibold">العميل</th>
-                <th className="px-4 py-3 font-semibold">الكاشير</th>
-                <th className="px-4 py-3 font-semibold">طريقة الدفع</th>
-                <th className="px-4 py-3 font-semibold">الإجمالي</th>
-                <th className="px-4 py-3 font-semibold">التاريخ</th>
-                <th className="px-4 py-3 font-semibold">إجراءات</th>
+                <th className="px-4 py-3 font-semibold">{t("رقم الفاتورة", "Invoice number")}</th>
+                <th className="px-4 py-3 font-semibold">{t("العميل", "Customer")}</th>
+                <th className="px-4 py-3 font-semibold">{t("الكاشير", "Cashier")}</th>
+                <th className="px-4 py-3 font-semibold">{t("طريقة الدفع", "Payment method")}</th>
+                <th className="px-4 py-3 font-semibold">{t("الإجمالي", "Total")}</th>
+                <th className="px-4 py-3 font-semibold">{t("التاريخ", "Date")}</th>
+                <th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
               </tr>
             </thead>
 
@@ -631,19 +637,19 @@ function InvoiceDetail({ id }) {
     <div className="space-y-4 text-sm">
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">الكاشير</p>
+          <p className="text-slate-500 text-xs">{t("الكاشير", "Cashier")}</p>
           <p className="font-semibold">{inv.cashier?.name}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">العميل</p>
+          <p className="text-slate-500 text-xs">{t("العميل", "Customer")}</p>
           <p className="font-semibold">{inv.customer?.name || "عميل عادي"}</p>
         </div>
         <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">طريقة الدفع</p>
+          <p className="text-slate-500 text-xs">{t("طريقة الدفع", "Payment method")}</p>
           <p className="font-semibold">{inv.paymentMethod}</p>
         </div>
         <div className="bg-green-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">الإجمالي</p>
+          <p className="text-slate-500 text-xs">{t("الإجمالي", "Total")}</p>
           <p className="font-bold text-lg text-green-600">
             {parseFloat(inv.total).toFixed(2)} ج
           </p>
@@ -698,16 +704,16 @@ function InvoiceDetail({ id }) {
           </div>
         )}
         <div className="flex justify-between font-bold text-base border-t pt-2">
-          <span>الإجمالي</span>
+          <span>{t("الإجمالي", "Total")}</span>
           <span className="text-indigo-600">{parseFloat(inv.total).toFixed(2)}</span>
         </div>
         <div className="flex justify-between">
-          <span>المدفوع</span>
+          <span>{t("المدفوع", "Paid")}</span>
           <span>{parseFloat(inv.amountPaid).toFixed(2)}</span>
         </div>
         {parseFloat(inv.changeGiven) > 0 && (
           <div className="flex justify-between text-green-600 font-semibold">
-            <span>الباقي</span>
+            <span>{t("الباقي", "Change due")}</span>
             <span>{parseFloat(inv.changeGiven).toFixed(2)}</span>
           </div>
         )}
@@ -720,6 +726,9 @@ function InvoiceDetail({ id }) {
 // CUSTOMERS
 // ══════════════════════════════════════════════════════════════
 export function Customers() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
@@ -742,9 +751,9 @@ export function Customers() {
   };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">العملاء</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{t("العملاء", "Customers")}</h2>
         <Btn onClick={() => { setForm({}); setModal("add"); }}><Plus className="w-4 h-4" /> عميل جديد</Btn>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
@@ -757,7 +766,7 @@ export function Customers() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-              <th className="px-4 py-3 font-semibold">الاسم</th><th className="px-4 py-3 font-semibold">الهاتف</th><th className="px-4 py-3 font-semibold">المدينة</th><th className="px-4 py-3 font-semibold">إجمالي الشراء</th><th className="px-4 py-3 font-semibold">إجراءات</th>
+              <th className="px-4 py-3 font-semibold">{t("الاسم", "Name")}</th><th className="px-4 py-3 font-semibold">{t("الهاتف", "Phone")}</th><th className="px-4 py-3 font-semibold">{t("المدينة", "City")}</th><th className="px-4 py-3 font-semibold">{t("إجمالي الشراء", "Total purchases")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
             </tr></thead>
             <tbody>
               {customers.map((c) => (
@@ -769,13 +778,13 @@ export function Customers() {
                   <td className="px-4 py-3"><button onClick={() => { setSelected(c); setForm({ ...c }); setModal("edit"); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><Edit2 className="w-4 h-4" /></button></td>
                 </tr>
               ))}
-              {customers.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-400">لا يوجد عملاء</td></tr>}
+              {customers.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-400">{t("لا يوجد عملاء", "No customers found")}</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
       {modal && (
-        <Modal title={modal === "add" ? "عميل جديد" : "تعديل العميل"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleSave}>حفظ</Btn></>}>
+        <Modal title={modal === "add" ? "عميل جديد" : "تعديل العميل"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="الاسم *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             <Field label="رقم الهاتف"><Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
@@ -796,6 +805,9 @@ export function Customers() {
 const REPAIR_STATUSES = { RECEIVED: { label: "مستلم", color: "blue" }, DIAGNOSING: { label: "تشخيص", color: "yellow" }, UNDER_REPAIR: { label: "قيد الإصلاح", color: "orange" }, WAITING_PARTS: { label: "انتظار قطع", color: "purple" }, COMPLETED: { label: "مكتمل", color: "green" }, DELIVERED: { label: "تم التسليم", color: "slate" }, CANCELLED: { label: "ملغي", color: "red" } };
 
 export function Repairs() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { activeBranch } = useStore();
   const [tickets, setTickets] = useState([]);
   const [modal, setModal] = useState(null);
@@ -826,13 +838,13 @@ export function Repairs() {
   };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">الصيانة والإصلاح</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{t("الصيانة والإصلاح", "Repairs & Service")}</h2>
         <Btn onClick={() => { setForm({ deviceType: "موبايل", problemDesc: "" }); setModal("add"); }}><Plus className="w-4 h-4" /> تذكرة جديدة</Btn>
       </div>
       <div className="flex gap-2 mb-4 flex-wrap">
-        <button onClick={() => setStatusFilter("")} className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${!statusFilter ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>الكل</button>
+        <button onClick={() => setStatusFilter("")} className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${!statusFilter ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>{t("الكل", "All")}</button>
         {Object.entries(REPAIR_STATUSES).map(([val, { label, color }]) => (
           <button key={val} onClick={() => setStatusFilter(statusFilter === val ? "" : val)} className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${statusFilter === val ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>{label}</button>
         ))}
@@ -856,7 +868,7 @@ export function Repairs() {
               </div>
               {t.estimatedCost && <div className="text-sm"><span className="text-slate-500">تقدير: </span><span className="font-bold text-indigo-600">{parseFloat(t.estimatedCost).toLocaleString()} ج</span></div>}
               <div className="flex gap-2">
-                <button onClick={() => { setSelected(t); setForm({ ...t }); setModal("edit"); }} className="flex-1 border border-slate-200 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-50">تعديل</button>
+                <button onClick={() => { setSelected(t); setForm({ ...t }); setModal("edit"); }} className="flex-1 border border-slate-200 py-1.5 rounded-lg text-xs font-medium hover:bg-slate-50">{t("تعديل", "Edit")}</button>
                 <Select className="flex-1 text-xs border border-slate-200 rounded-lg py-1.5 px-2 bg-white" value={t.status} onChange={(e) => updateStatus(t.id, e.target.value)}>
                   {Object.entries(REPAIR_STATUSES).map(([v, { label }]) => <option key={v} value={v}>{label}</option>)}
                 </Select>
@@ -865,14 +877,14 @@ export function Repairs() {
             </div>
           );
         })}
-        {tickets.length === 0 && <div className="col-span-3 text-center py-12 text-slate-400">لا توجد تذاكر</div>}
+        {tickets.length === 0 && <div className="col-span-3 text-center py-12 text-slate-400">{t("لا توجد تذاكر", "No repair tickets")}</div>}
       </div>
       {modal && (
-        <Modal title={modal === "add" ? "تذكرة صيانة جديدة" : "تعديل التذكرة"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleSave}>حفظ</Btn></>}>
+        <Modal title={modal === "add" ? "تذكرة صيانة جديدة" : "تعديل التذكرة"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="العميل">
               <Select value={form.customerId || ""} onChange={(e) => setForm({ ...form, customerId: e.target.value || undefined })}>
-                <option value="">بدون عميل</option>
+                <option value="">{t("بدون عميل", "No customer")}</option>
                 {customers.map((c) => <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>)}
               </Select>
             </Field>
@@ -906,6 +918,9 @@ export function Repairs() {
 // TRANSFERS
 // ══════════════════════════════════════════════════════════════
 export function Transfers() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { activeBranch, branches, fetchBranches } = useStore();
   const [transfers, setTransfers] = useState([]);
   const [modal, setModal] = useState(false);
@@ -935,15 +950,15 @@ export function Transfers() {
   const ST = { PENDING: { label: "معلق", color: "yellow" }, COMPLETED: { label: "مكتمل", color: "green" }, CANCELLED: { label: "ملغي", color: "red" } };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">نقل المخزون</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{t("نقل المخزون", "Stock transfers")}</h2>
         <Btn onClick={() => setModal(true)}><Plus className="w-4 h-4" /> نقل جديد</Btn>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-            <th className="px-4 py-3 font-semibold">الرقم المرجعي</th><th className="px-4 py-3 font-semibold">من</th><th className="px-4 py-3 font-semibold">إلى</th><th className="px-4 py-3 font-semibold">العناصر</th><th className="px-4 py-3 font-semibold">الحالة</th><th className="px-4 py-3 font-semibold">التاريخ</th><th className="px-4 py-3 font-semibold">إجراءات</th>
+            <th className="px-4 py-3 font-semibold">{t("الرقم المرجعي", "Reference")}</th><th className="px-4 py-3 font-semibold">{t("من", "From")}</th><th className="px-4 py-3 font-semibold">{t("إلى", "To")}</th><th className="px-4 py-3 font-semibold">{t("العناصر", "Items")}</th><th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th><th className="px-4 py-3 font-semibold">{t("التاريخ", "Date")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
           </tr></thead>
           <tbody>
             {transfers.map((t) => {
@@ -959,35 +974,35 @@ export function Transfers() {
                   <td className="px-4 py-3">
                     {t.status === "PENDING" && (
                       <div className="flex gap-1">
-                        <button onClick={() => updateStatus(t.id, "COMPLETED")} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-lg hover:bg-green-200">تأكيد</button>
-                        <button onClick={() => updateStatus(t.id, "CANCELLED")} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-lg hover:bg-red-200">إلغاء</button>
+                        <button onClick={() => updateStatus(t.id, "COMPLETED")} className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-lg hover:bg-green-200">{t("تأكيد", "Confirm")}</button>
+                        <button onClick={() => updateStatus(t.id, "CANCELLED")} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-lg hover:bg-red-200">{t("إلغاء", "Cancel")}</button>
                       </div>
                     )}
                   </td>
                 </tr>
               );
             })}
-            {transfers.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">لا توجد عمليات نقل</td></tr>}
+            {transfers.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">{t("لا توجد عمليات نقل", "No transfers")}</td></tr>}
           </tbody>
         </table>
       </div>
 
       {modal && (
-        <Modal title="طلب نقل مخزون جديد" onClose={() => setModal(false)} footer={<><Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn><Btn onClick={handleCreate}>إرسال الطلب</Btn></>}>
+        <Modal title="طلب نقل مخزون جديد" onClose={() => setModal(false)} footer={<><Btn variant="secondary" onClick={() => setModal(false)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleCreate}>{t("إرسال الطلب", "Submit transfer")}</Btn></>}>
           <div className="space-y-3">
             <Field label="الفرع المستلم *">
               <Select value={form.destBranchId} onChange={(e) => setForm({ ...form, destBranchId: e.target.value })}>
-                <option value="">اختر فرعاً</option>
+                <option value="">{t("اختر فرعاً", "Select a branch")}</option>
                 {branches.filter((b) => b.id !== activeBranch?.id).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </Select>
             </Field>
             <Field label="ملاحظات"><Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
             <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-700">المنتجات</p>
+              <p className="text-sm font-semibold text-slate-700">{t("المنتجات", "Products")}</p>
               {form.items.map((item, i) => (
                 <div key={i} className="flex gap-2">
                   <Select value={item.productId} onChange={(e) => { const items = [...form.items]; items[i].productId = e.target.value; setForm({ ...form, items }); }} className="flex-1">
-                    <option value="">اختر منتجاً</option>
+                    <option value="">{t("اختر منتجاً", "Select a product")}</option>
                     {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </Select>
                   <Input type="number" value={item.quantity} onChange={(e) => { const items = [...form.items]; items[i].quantity = parseInt(e.target.value); setForm({ ...form, items }); }} min={1} className="w-20" />
@@ -1009,6 +1024,9 @@ export function Transfers() {
 const EXP_CATS = { RENT: "إيجار", SALARIES: "رواتب", UTILITIES: "مرافق", MAINTENANCE: "صيانة", TRANSPORT: "مواصلات", MARKETING: "تسويق", SUPPLIES: "مستلزمات", TAXES: "ضرائب", OTHER: "أخرى" };
 
 export function Expenses() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { activeBranch } = useStore();
   const [expenses, setExpenses] = useState([]);
   const [total, setTotal] = useState(0);
@@ -1029,10 +1047,10 @@ export function Expenses() {
   };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">المصروفات</h2>
+          <h2 className="text-2xl font-bold text-slate-800">{t("المصروفات", "Expenses")}</h2>
           <p className="text-slate-500 text-sm mt-1">إجمالي: <span className="font-bold text-red-600">{total.toLocaleString()} ج</span></p>
         </div>
         <Btn onClick={() => setModal(true)}><Plus className="w-4 h-4" /> مصروف جديد</Btn>
@@ -1040,7 +1058,7 @@ export function Expenses() {
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-            <th className="px-4 py-3 font-semibold">التصنيف</th><th className="px-4 py-3 font-semibold">الوصف</th><th className="px-4 py-3 font-semibold">المبلغ</th><th className="px-4 py-3 font-semibold">الحساب</th><th className="px-4 py-3 font-semibold">بواسطة</th><th className="px-4 py-3 font-semibold">التاريخ</th>
+            <th className="px-4 py-3 font-semibold">{t("التصنيف", "Category")}</th><th className="px-4 py-3 font-semibold">{t("الوصف", "Description")}</th><th className="px-4 py-3 font-semibold">{t("المبلغ", "Amount")}</th><th className="px-4 py-3 font-semibold">{t("الحساب", "Account")}</th><th className="px-4 py-3 font-semibold">{t("بواسطة", "Created by")}</th><th className="px-4 py-3 font-semibold">{t("التاريخ", "Date")}</th>
           </tr></thead>
           <tbody>
             {expenses.map((e) => (
@@ -1053,12 +1071,12 @@ export function Expenses() {
                 <td className="px-4 py-3 text-slate-500 text-xs">{new Date(e.paidAt).toLocaleDateString("ar-EG")}</td>
               </tr>
             ))}
-            {expenses.length === 0 && <tr><td colSpan={6} className="text-center py-12 text-slate-400">لا توجد مصروفات</td></tr>}
+            {expenses.length === 0 && <tr><td colSpan={6} className="text-center py-12 text-slate-400">{t("لا توجد مصروفات", "No expenses found")}</td></tr>}
           </tbody>
         </table>
       </div>
       {modal && (
-        <Modal title="إضافة مصروف" onClose={() => setModal(false)} footer={<><Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn><Btn onClick={handleSave}>حفظ</Btn></>}>
+        <Modal title="إضافة مصروف" onClose={() => setModal(false)} footer={<><Btn variant="secondary" onClick={() => setModal(false)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="التصنيف *">
               <Select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
@@ -1067,7 +1085,7 @@ export function Expenses() {
             </Field>
             <Field label="الوصف *"><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="وصف المصروف" /></Field>
             <Field label="المبلغ *"><Input type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" min={0} step={0.01} /></Field>
-            <Field label="الدفع من *"><Select value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })}><option value="">الخزنة الافتراضية</option>{accounts.filter(a=>a.isActive).map(a=><option key={a.id} value={a.id}>{a.name} — {parseFloat(a.balance).toFixed(2)}</option>)}</Select></Field>
+            <Field label="الدفع من *"><Select value={form.accountId} onChange={(e) => setForm({ ...form, accountId: e.target.value })}><option value="">{t("الخزنة الافتراضية", "Default cashbox")}</option>{accounts.filter(a=>a.isActive).map(a=><option key={a.id} value={a.id}>{a.name} — {parseFloat(a.balance).toFixed(2)}</option>)}</Select></Field>
           </div>
         </Modal>
       )}
@@ -1081,6 +1099,9 @@ export function Expenses() {
 const ROLES = { SUPER_ADMIN: "مدير عام", BRANCH_MANAGER: "مدير فرع", CASHIER: "كاشير", INVENTORY_MANAGER: "مدير مخزون", ACCOUNTANT: "محاسب", TECHNICIAN: "فني" };
 
 export function Users() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { branches, fetchBranches } = useStore();
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(null);
@@ -1105,15 +1126,15 @@ export function Users() {
   const ROLE_COLORS = { SUPER_ADMIN: "red", BRANCH_MANAGER: "purple", CASHIER: "blue", INVENTORY_MANAGER: "green", ACCOUNTANT: "orange", TECHNICIAN: "yellow" };
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">إدارة المستخدمين</h2>
+        <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المستخدمين", "User management")}</h2>
         <Btn onClick={() => { setForm({ role: "CASHIER", isActive: true, password: "", maxDiscountPct: 15 }); setModal("add"); }}><Plus className="w-4 h-4" /> مستخدم جديد</Btn>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-            <th className="px-4 py-3 font-semibold">المستخدم</th><th className="px-4 py-3 font-semibold">اسم المستخدم</th><th className="px-4 py-3 font-semibold">الدور</th><th className="px-4 py-3 font-semibold">الفرع</th><th className="px-4 py-3 font-semibold">الحالة</th><th className="px-4 py-3 font-semibold">آخر دخول</th><th className="px-4 py-3 font-semibold">إجراءات</th>
+            <th className="px-4 py-3 font-semibold">{t("المستخدم", "User")}</th><th className="px-4 py-3 font-semibold">{t("اسم المستخدم", "Username")}</th><th className="px-4 py-3 font-semibold">{t("الدور", "Role")}</th><th className="px-4 py-3 font-semibold">{t("الفرع", "Branch")}</th><th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th><th className="px-4 py-3 font-semibold">{t("آخر دخول", "Last login")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
           </tr></thead>
           <tbody>
             {users.map((u) => (
@@ -1132,12 +1153,12 @@ export function Users() {
                 <td className="px-4 py-3"><button onClick={() => { setSelected(u); setForm({ name: u.name, email: u.email, role: u.role, branchId: u.branchId, isActive: u.isActive, password: "", maxDiscountPct: u.maxDiscountPct ?? 15, permissions: u.permissions || {} }); setModal("edit"); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><Edit2 className="w-4 h-4" /></button></td>
               </tr>
             ))}
-            {users.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">لا يوجد مستخدمون</td></tr>}
+            {users.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">{t("لا يوجد مستخدمون", "No users found")}</td></tr>}
           </tbody>
         </table>
       </div>
       {modal && (
-        <Modal title={modal === "add" ? "مستخدم جديد" : "تعديل المستخدم"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn><Btn onClick={handleSave}>حفظ</Btn></>}>
+        <Modal title={modal === "add" ? "مستخدم جديد" : "تعديل المستخدم"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="الاسم الكامل *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
             {modal === "add" && <Field label="اسم المستخدم *"><Input value={form.username || ""} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>}
@@ -1151,7 +1172,7 @@ export function Users() {
               </Field>
               <Field label="الفرع">
                 <Select value={form.branchId || ""} onChange={(e) => setForm({ ...form, branchId: e.target.value || undefined })}>
-                  <option value="">بدون فرع</option>
+                  <option value="">{t("بدون فرع", "No branch")}</option>
                   {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </Select>
               </Field>
@@ -1159,7 +1180,7 @@ export function Users() {
             <Field label="أقصى خصم مسموح %"><Input type="number" min={0} max={100} value={form.maxDiscountPct ?? 15} onChange={(e) => setForm({ ...form, maxDiscountPct: Number(e.target.value) })} /></Field>
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 accent-indigo-600" />
-              <span className="text-sm font-medium text-slate-700">حساب فعال</span>
+              <span className="text-sm font-medium text-slate-700">{t("حساب فعال", "Active account")}</span>
             </label>
           </div>
         </Modal>
