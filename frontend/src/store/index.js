@@ -394,7 +394,7 @@ export const useStore = create(
     }),
     {
       name: "erp-pos-store",
-      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, language: s.language || "ar", products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt }),
+      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, language: s.language || "ar", products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt, systemFeatures: s.systemFeatures || {} }),
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
           state.isAuthenticated = true;
