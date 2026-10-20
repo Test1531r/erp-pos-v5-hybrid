@@ -14,20 +14,28 @@ const pay=async r=>{
   const openInstallments=(r.installments||[]).filter(i=>Number(i.amount)-Number(i.paidAmount)>0.000001);
   let installmentId="";
   let targetBalance=Number(r.remaining);
-  if(openInstallments.length){
-    const choices=[{value:"AUTO",label:t("توزيع تلقائي على أقدم الأقساط","Auto-apply to oldest installments")},...openInstallments.map(i=>({value:i.id,label:t("قسط #"+i.sequence+" · متبقي "+fmt(Number(i.amount)-Number(i.paidAmount)),"Installment #"+i.sequence+" · remaining "+fmt(Number(i.amount)-Number(i.paidAmount)))}))];
-    const target=await prompt(t("حدد طريقة توزيع التحصيل","Choose how to apply the payment"),"AUTO",{title:t("القسط المستهدف","Target installment"),choices});
-    if(target==null)return;
-    if(target!=="AUTO"){
-      const selected=openInstallments.find(i=>i.id===target);
-      if(!selected)return;
-      installmentId=selected.id;
-      targetBalance=Number(selected.amount)-Number(selected.paidAmount);
-    }
+  const choices=[
+    {value:"FULL",label:t("سداد كامل المستحق · "+fmt(r.remaining),"Pay full outstanding · "+fmt(r.remaining))},
+    ...(openInstallments.length?[
+      {value:"AUTO",label:t("تحصيل جزئي وتوزيعه على أقدم الأقساط","Partial payment · apply to oldest installments")},
+      ...openInstallments.map(i=>({value:i.id,label:t("قسط #"+i.sequence+" · متبقي "+fmt(Number(i.amount)-Number(i.paidAmount)),"Installment #"+i.sequence+" · remaining "+fmt(Number(i.amount)-Number(i.paidAmount))}))
+    ]:[{value:"PARTIAL",label:t("تحصيل مبلغ جزئي","Collect a partial amount")}])
+  ];
+  const target=await prompt(t("اختر طريقة التحصيل","Choose collection method"),openInstallments.length?"AUTO":"PARTIAL",{title:t("طريقة التحصيل","Collection method"),choices});
+  if(target==null)return;
+  const payAll=target==="FULL";
+  if(target!=="FULL"&&target!=="AUTO"&&target!=="PARTIAL"){
+    const selected=openInstallments.find(i=>i.id===target);
+    if(!selected)return;
+    installmentId=selected.id;
+    targetBalance=Number(selected.amount)-Number(selected.paidAmount);
   }
-  const amountInput=await prompt(t("المبلغ المتبقي "+fmt(targetBalance)+". أدخل مبلغ التحصيل.","Remaining amount: "+fmt(targetBalance)+". Enter the collection amount."),"",{title:t("تحصيل دفعة من العميل","Collect customer payment"),placeholder:t("مبلغ التحصيل","Payment amount")});
-  if(amountInput==null||String(amountInput).trim()==="")return;
-  const amount=Number(String(amountInput).trim());
+  let amount=targetBalance;
+  if(!payAll){
+    const amountInput=await prompt(t("المتبقي "+fmt(targetBalance)+". أدخل مبلغ التحصيل.","Remaining amount: "+fmt(targetBalance)+". Enter the collection amount."),"",{title:t("تحصيل دفعة من العميل","Collect customer payment"),placeholder:t("مبلغ التحصيل","Payment amount")});
+    if(amountInput==null||String(amountInput).trim()==="")return;
+    amount=Number(String(amountInput).trim());
+  }
   if(!Number.isFinite(amount)||amount<=0){toast.error(t("أدخل مبلغًا صحيحًا أكبر من صفر","Enter a valid amount greater than zero"));return;}
   if(amount>targetBalance+0.000001){toast.error(t("المبلغ أكبر من المتبقي في القسط أو المديونية","Amount exceeds the remaining installment or receivable balance"));return;}
   const activeAccounts=accounts.filter(a=>a.isActive!==false);
@@ -39,7 +47,7 @@ const pay=async r=>{
     const selectedAccount=activeAccounts.find(a=>a.id===accountId);
     const selectedInstallment=(r.installments||[]).find(i=>i.id===installmentId);
     const latestPayment=(response.data?.payments||[]).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))[0];
-    setReceipt({customerName:r.customer?.name||"",invoiceNumber:r.invoice?.invoiceNumber||"",amount,accountName:selectedAccount?.name||"",paymentId:latestPayment?.id||"",date:new Date().toLocaleString(),installmentLabel:selectedInstallment?t("القسط #"+selectedInstallment.sequence,"Installment #"+selectedInstallment.sequence):t("توزيع تلقائي","Auto-applied")});
+    setReceipt({customerName:r.customer?.name||"",invoiceNumber:r.invoice?.invoiceNumber||"",amount,accountName:selectedAccount?.name||"",paymentId:latestPayment?.id||"",date:new Date().toLocaleString(),installmentLabel:selectedInstallment?t("القسط #"+selectedInstallment.sequence,"Installment #"+selectedInstallment.sequence):payAll?t("سداد كامل المستحق","Full outstanding balance"):openInstallments.length?t("توزيع تلقائي","Auto-applied"):t("تحصيل جزئي","Partial payment")});
     toast.success(t("تم التحصيل","Payment collected"));
     await load();
   }catch(e){
