@@ -179,7 +179,9 @@ function CustomerModal({ onClose, onSelect }) {
 
 // ── CHECKOUT MODAL ──────────────────────────────────────────
 function CheckoutModal({ onClose }) {
-  const { cartItems, cartCustomer, cartDiscount, cartTaxRate, checkout, checkoutLoading, lastInvoice, getCartTotals, validateIMEIs } = useStore();
+  const { cartItems, cartCustomer, cartDiscount, cartTaxRate, checkout, checkoutLoading, lastInvoice, getCartTotals, validateIMEIs, language } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const totals = getCartTotals();
   const [method, setMethod] = useState("CASH");
   const [amountPaid, setAmountPaid] = useState(totals.total.toFixed(2));
@@ -272,12 +274,12 @@ function CheckoutModal({ onClose }) {
     <div class="row"><span>${i.quantity} × ${parseFloat(i.unitPrice).toFixed(2)}</span><span>${parseFloat(i.lineTotal).toFixed(2)}</span></div>
     ${i.imeiNumbers?.length ? `<p style="font-size:10px">IMEI: ${i.imeiNumbers.join(", ")}</p>` : ""}</div><div class="sep" style="border-style:dotted"></div>`).join("")}
     <div class="row"><span>المجموع</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
-    ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>خصم</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
-    ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>ضريبة</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
-    <div class="sep"></div><div class="row b" style="font-size:14px"><span>{t("الإجمالي", "Total")}</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
+    ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>{t(t("خصم", "Discount"), "Discount")}</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
+    ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>{t(t("ضريبة", "Tax"), "Tax")}</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
+    <div class="sep"></div><div class="row b" style="font-size:14px"><span>{t(t("الإجمالي", "Total"), "Total")}</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
     <div class="sep"></div>
     <div class="row"><span>المدفوع</span><span>${parseFloat(inv.amountPaid).toFixed(2)}</span></div>
-    ${parseFloat(inv.changeGiven) > 0 ? `<div class="row b"><span>الباقي</span><span>${parseFloat(inv.changeGiven).toFixed(2)}</span></div>` : ""}
+    ${parseFloat(inv.changeGiven) > 0 ? `<div class="row b"><span>{t(t("الباقي", "Change due"), "Change due")}</span><span>${parseFloat(inv.changeGiven).toFixed(2)}</span></div>` : ""}
     <div class="sep"></div><div class="c"><p>شكراً لتسوقكم معنا!</p><p>الإرجاع خلال 7 أيام بالفاتورة</p></div>
     </body></html>`);
     win.document.close(); win.focus(); win.print(); win.close();
@@ -292,8 +294,8 @@ function CheckoutModal({ onClose }) {
         <h3 className="text-xl font-bold text-slate-800">تم البيع بنجاح!</h3>
         <p className="text-slate-500 text-sm mt-1 font-mono">{lastInvoice?.invoiceNumber}</p>
         <div className="grid grid-cols-2 gap-3 mt-5">
-          <div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">الإجمالي</p><p className="font-bold text-lg">{parseFloat(lastInvoice?.total || 0).toFixed(2)}</p></div>
-          <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-slate-500">الباقي</p><p className="font-bold text-lg text-green-600">{receipt.change?.toFixed(2)}</p></div>
+          <div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">{t(t("الإجمالي", "Total"), "Total")}</p><p className="font-bold text-lg">{parseFloat(lastInvoice?.total || 0).toFixed(2)}</p></div>
+          <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-slate-500">{t(t("الباقي", "Change due"), "Change due")}</p><p className="font-bold text-lg text-green-600">{receipt.change?.toFixed(2)}</p></div>
         </div>
         <div className="flex gap-2 mt-5">
           <button onClick={onClose} className="flex-1 border border-slate-200 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50">بيع جديد</button>
@@ -309,16 +311,16 @@ function CheckoutModal({ onClose }) {
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-          <h3 className="font-bold text-slate-800 text-lg">إتمام البيع</h3>
+          <h3 className="font-bold text-slate-800 text-lg">{t(t("إتمام البيع", "Complete sale"), "Complete sale")}</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-5">
           {/* Summary */}
           <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
-            {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
+            <div className="flex justify-between text-slate-600"><span>{t(t("المجموع الفرعي", "Subtotal"), "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
+            {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>{t(t("خصم", "Discount"), "Discount")}</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
             {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
-            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>{t("الإجمالي", "Total")}</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
+            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>{t(t("الإجمالي", "Total"), "Total")}</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
             {cartCustomer && <div className="text-indigo-600 text-xs flex items-center gap-1"><User className="w-3 h-3" /> {cartCustomer.name}</div>}
           </div>
 
@@ -359,14 +361,14 @@ function CheckoutModal({ onClose }) {
               {PAYMENT_METHODS.map(({ value, label, icon: Icon, color, bg }) => (
                 <button key={value} onClick={() => setMethod(value)} className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-all ${method === value ? bg + " border-2" : "border-slate-200 hover:bg-slate-50"}`}>
                   <Icon className={`w-5 h-5 ${method === value ? color : "text-slate-400"}`} />
-                  {label}
+                  {t(label, ({ "كاش": "Cash", "كارت": "Card", "فودافون كاش": "Vodafone Cash", "إنستاباي": "InstaPay", "تحويل بنكي": "Bank transfer", "آجل / أقساط": "Credit / installments" })[label] || label)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-            <div><p className="text-sm font-semibold text-indigo-800">دفع مختلط</p><p className="text-xs text-indigo-600">قسّم الفاتورة بين كاش / كارت / فودافون / إنستاباي / بنك</p></div>
+            <div><p className="text-sm font-semibold text-indigo-800">{t(t("دفع مختلط", "Split payment"), "Split payment")}</p><p className="text-xs text-indigo-600">{t(t("قسّم الفاتورة بين كاش / كارت / فودافون / إنستاباي / بنك", "Split the invoice across cash, card, Vodafone Cash, InstaPay or bank"), "Split the invoice across cash, card, Vodafone Cash, InstaPay or bank")}</p></div>
             <button onClick={() => setMixed(!mixed)} className={`w-12 h-7 rounded-full p-1 transition-colors ${mixed ? "bg-indigo-600" : "bg-slate-300"}`}><span className={`block w-5 h-5 bg-white rounded-full transition-transform ${mixed ? "-translate-x-5" : ""}`} /></button>
           </div>
 
@@ -390,8 +392,8 @@ function CheckoutModal({ onClose }) {
               <p className="text-sm font-semibold text-amber-800">بيع آجل / أقساط</p>
               {!cartCustomer && <p className="text-xs text-red-600">يجب اختيار عميل من السلة أولاً.</p>}
               <div className="grid grid-cols-3 gap-2">
-                <div><label className="text-[11px] text-slate-500">تاريخ الاستحقاق</label><input type="date" value={credit.dueDate} onChange={e=>setCredit({...credit,dueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
-                <div><label className="text-[11px] text-slate-500">عدد الأقساط</label><input type="number" min="0" max="60" value={credit.installmentsCount} onChange={e=>setCredit({...credit,installmentsCount:Number(e.target.value)})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
+                <div><label className="text-[11px] text-slate-500">{t(t("تاريخ الاستحقاق", "Due date"), "Due date")}</label><input type="date" value={credit.dueDate} onChange={e=>setCredit({...credit,dueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
+                <div><label className="text-[11px] text-slate-500">{t(t("عدد الأقساط", "Installment count"), "Installment count")}</label><input type="number" min="0" max="60" value={credit.installmentsCount} onChange={e=>setCredit({...credit,installmentsCount:Number(e.target.value)})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
                 <div><label className="text-[11px] text-slate-500">أول قسط</label><input type="date" value={credit.firstDueDate} onChange={e=>setCredit({...credit,firstDueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
               </div>
             </div>
@@ -399,7 +401,7 @@ function CheckoutModal({ onClose }) {
 
           {/* Amount paid */}
           {!mixed && method !== "CREDIT" && <div>
-            <label className="text-sm font-semibold text-slate-700 mb-2 block">المبلغ المدفوع</label>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">{t(t("المبلغ المدفوع", "Amount paid"), "Amount paid")}</label>
             <input
               type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)}
               className="w-full border-2 border-indigo-200 rounded-xl py-3 px-4 text-2xl font-bold text-center focus:outline-none focus:border-indigo-500"
