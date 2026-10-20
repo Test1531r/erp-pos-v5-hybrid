@@ -65,10 +65,12 @@ router.post("/", async (req, res) => {
       for (const raw of req.body.items) {
         const source = invoiceMap.get(raw.invoiceItemId);
         if (!source) throw Object.assign(new Error("أحد أصناف المرتجع لا ينتمي إلى الفاتورة"), { status: 422 });
-        const qty = positiveInt(raw.quantity);
+        let qty;
+        try { qty = positiveInt(raw.quantity); }
+        catch (validationError) { throw Object.assign(new Error(validationError.message || "كمية المرتجع غير صالحة"), { status: 400 }); }
         const available = source.quantity - (prior.get(source.id) || 0);
         if (qty > available) throw Object.assign(new Error(`الكمية المرتجعة من ${source.productName} أكبر من المتاح (${available})`), { status: 422 });
-        const imeis = Array.isArray(raw.imeiNumbers) ? raw.imeiNumbers.map(String) : [];
+        const imeis = Array.isArray(raw.imeiNumbers) ? raw.imeiNumbers.map((value) => String(value).trim()) : [];
         if (source.imeiNumbers?.length) {
           if (imeis.length !== qty) throw Object.assign(new Error(`حدد ${qty} IMEI للمرتجع من ${source.productName}`), { status: 422 });
           if (imeis.some((i) => !source.imeiNumbers.includes(i))) throw Object.assign(new Error("IMEI غير موجود في الفاتورة الأصلية"), { status: 422 });
