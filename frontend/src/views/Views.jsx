@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useStore, api } from "../store/index.js";
 import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
 import toast from "react-hot-toast";
+import { useDialog } from "../components/InteractionProvider.jsx";
 
 // ── SHARED MODAL ────────────────────────────────────────────
 function Modal({ title, onClose, children, footer }) {
@@ -254,6 +255,7 @@ export function Inventory() {
 // SALES
 // ══════════════════════════════════════════════════════════════
 export function Sales() {
+  const { confirm } = useDialog();
   const language = useStore((state) => state.language);
   const en = language === "en";
   const t = (ar, english) => en ? english : ar;
@@ -299,8 +301,9 @@ export function Sales() {
   };
 
   const handleDelete = async (invoice) => {
-    const ok = window.confirm(
-      `هل أنت متأكد من حذف الفاتورة ${invoice.invoiceNumber}؟\n\nسيتم إرجاع المخزون وعكس التأثير المالي المرتبط بالفاتورة. لا يمكن التراجع عن هذه العملية.`
+    const ok = await confirm(
+      `هل أنت متأكد من حذف الفاتورة ${invoice.invoiceNumber}؟\n\nسيتم إرجاع المخزون وعكس التأثير المالي المرتبط بالفاتورة. لا يمكن التراجع عن هذه العملية.`,
+      { title: t("تأكيد حذف الفاتورة", "Confirm invoice deletion"), danger: true, confirmLabel: t("حذف الفاتورة", "Delete invoice") }
     );
     if (!ok) return;
 
