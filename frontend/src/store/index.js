@@ -10,6 +10,7 @@ export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api
 api.interceptors.request.use((config) => {
   const state = useStore.getState();
   if (state.token) config.headers.Authorization = `Bearer ${state.token}`;
+  config.headers["Accept-Language"] = state.language === "en" ? "en" : "ar";
   if (state.activeBranch?.id) config.headers["X-Branch-Id"] = state.activeBranch.id;
   return config;
 });
