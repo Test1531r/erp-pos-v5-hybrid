@@ -274,7 +274,7 @@ function CheckoutModal({ onClose }) {
     <div class="row"><span>المجموع</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
     ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>خصم</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
     ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>ضريبة</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
-    <div class="sep"></div><div class="row b" style="font-size:14px"><span>الإجمالي</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
+    <div class="sep"></div><div class="row b" style="font-size:14px"><span>{t("الإجمالي", "Total")}</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
     <div class="sep"></div>
     <div class="row"><span>المدفوع</span><span>${parseFloat(inv.amountPaid).toFixed(2)}</span></div>
     ${parseFloat(inv.changeGiven) > 0 ? `<div class="row b"><span>الباقي</span><span>${parseFloat(inv.changeGiven).toFixed(2)}</span></div>` : ""}
@@ -315,10 +315,10 @@ function CheckoutModal({ onClose }) {
         <div className="p-5 space-y-5">
           {/* Summary */}
           <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600"><span>المجموع الفرعي</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
+            <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
             {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
             {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
-            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>الإجمالي</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
+            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>{t("الإجمالي", "Total")}</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
             {cartCustomer && <div className="text-indigo-600 text-xs flex items-center gap-1"><User className="w-3 h-3" /> {cartCustomer.name}</div>}
           </div>
 
@@ -529,7 +529,9 @@ function ProductCard({ product, stock, onAdd }) {
 export default function POS() {
   const { confirm } = useDialog();
   const { cartItems, cartCustomer, cartDiscount, cartTaxRate, cartNotes, searchQuery, selectedCategory, categories, activeBranch,
-    addToCart, setCustomer, clearCustomer, setDiscount, setTaxRate, setNotes, clearCart, getCartTotals, getFilteredProducts, getStock, setSearch, setCategory, fetchProducts } = useStore();
+    addToCart, setCustomer, clearCustomer, setDiscount, setTaxRate, setNotes, clearCart, getCartTotals, getFilteredProducts, getStock, setSearch, setCategory, fetchProducts, language } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
 
   const [customerModal, setCustomerModal] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
@@ -552,7 +554,7 @@ export default function POS() {
   useEffect(() => { fetchProducts({ search: searchQuery, categoryId: selectedCategory }); }, [searchQuery, selectedCategory, activeBranch?.id]);
 
   return (
-    <div className="flex h-full overflow-hidden bg-slate-100" dir="rtl">
+    <div className="flex h-full overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
       {/* ── LEFT: PRODUCTS ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Search & Filter Bar */}
@@ -561,14 +563,14 @@ export default function POS() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               ref={searchRef} value={searchQuery} onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث بالاسم أو SKU أو الباركود... (F2)"
+              placeholder={t("بحث بالاسم أو SKU أو الباركود... (F2)", "Search by name, SKU or barcode... (F2)")}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pr-9 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all"
             />
             {searchQuery && <button onClick={() => setSearch("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>}
           </div>
           {/* Category tabs */}
           <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-            <button onClick={() => setCategory(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${!selectedCategory ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>الكل</button>
+            <button onClick={() => setCategory(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${!selectedCategory ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{t("الكل", "All")}</button>
             {categories.map((c) => (
               <button key={c.id} onClick={() => setCategory(selectedCategory === c.id ? null : c.id)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${selectedCategory === c.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
                 {c.icon} {c.name}
@@ -578,15 +580,15 @@ export default function POS() {
         </div>
 
         {/* Count */}
-        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{filteredProducts.length} منتج</div>
+        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{filteredProducts.length} {t("منتج", "products")}</div>
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-3">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Package className="w-16 h-16 mb-3 opacity-20" />
-              <p className="text-lg font-medium">لا توجد منتجات</p>
-              <p className="text-sm mt-1">جرب بحثاً مختلفاً</p>
+              <p className="text-lg font-medium">{t("لا توجد منتجات", "No products found")}</p>
+              <p className="text-sm mt-1">{t("جرب بحثاً مختلفاً", "Try another search")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -602,11 +604,11 @@ export default function POS() {
         <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-indigo-600" />
-            <span className="font-bold text-slate-800">السلة</span>
+            <span className="font-bold text-slate-800">{t("السلة", "Cart")}</span>
             {cartItems.length > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{itemCount}</span>}
           </div>
           {cartItems.length > 0 && (
-            <button onClick={async () => { if (await confirm("سيتم حذف جميع الأصناف من السلة الحالية.", { title: "مسح سلة البيع", danger: true, confirmLabel: "مسح السلة" })) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+            <button onClick={async () => { if (await confirm(t("سيتم حذف جميع الأصناف من السلة الحالية.", "All items will be removed from the current cart."), { title: t("مسح سلة البيع", "Clear sales cart"), danger: true, confirmLabel: t("مسح السلة", "Clear cart") })) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -632,8 +634,8 @@ export default function POS() {
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-300">
               <ShoppingCart className="w-14 h-14 mb-3" />
-              <p className="text-sm font-medium">السلة فارغة</p>
-              <p className="text-xs mt-1">اضغط على المنتجات للإضافة</p>
+              <p className="text-sm font-medium">{t("السلة فارغة", "Cart is empty")}</p>
+              <p className="text-xs mt-1">{t("اضغط على المنتجات للإضافة", "Select products to add them")}</p>
             </div>
           ) : (
             cartItems.map((item) => <CartItem key={item.id} item={item} />)
@@ -644,11 +646,11 @@ export default function POS() {
         {cartItems.length > 0 && (
           <div className="px-4 py-3 border-t shrink-0 grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-slate-500">خصم (مبلغ)</label>
+              <label className="text-xs text-slate-500">{t("خصم (مبلغ)", "Discount (amount)")}</label>
               <input type="number" value={cartDiscount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} placeholder="0" className="w-full border rounded-lg px-2 py-1.5 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-indigo-400" min={0} />
             </div>
             <div>
-              <label className="text-xs text-slate-500">ضريبة %</label>
+              <label className="text-xs text-slate-500">{t("ضريبة %", "Tax %")}</label>
               <input type="number" value={cartTaxRate || ""} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} placeholder="0" className="w-full border rounded-lg px-2 py-1.5 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-indigo-400" min={0} max={100} />
             </div>
           </div>
@@ -658,11 +660,11 @@ export default function POS() {
         {cartItems.length > 0 && (
           <div className="px-4 pb-4 border-t pt-3 shrink-0 space-y-3">
             <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 text-sm">
-              <div className="flex justify-between text-slate-600"><span>المجموع الفرعي</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
+              <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
               {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
               {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
               <div className="border-t pt-2 flex justify-between font-bold text-base">
-                <span>الإجمالي</span>
+                <span>{t("الإجمالي", "Total")}</span>
                 <span className="text-indigo-600">{totals.total.toFixed(2)} ج</span>
               </div>
             </div>
