@@ -12,7 +12,7 @@ const localDate = date => {
 };
 const csvCell = value => {
   let text = String(value ?? "");
-  if (typeof value === "string" && /^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 };
 const Field = ({ label, children }) => <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">{label}{children}</label>;
@@ -67,7 +67,7 @@ export default function Reports() {
       [t("الخصومات", "Discounts"), Number(data.discount || 0)],
       [t("الضرائب", "Tax"), Number(data.tax || 0)],
     ];
-    const csv = "\\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\\r\\n");
+    const csv = "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
