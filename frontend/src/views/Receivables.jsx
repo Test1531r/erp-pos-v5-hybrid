@@ -18,7 +18,13 @@ const pay=async r=>{
     {value:"FULL",label:t("سداد كامل المستحق · "+fmt(r.remaining),"Pay full outstanding · "+fmt(r.remaining))},
     ...(openInstallments.length?[
       {value:"AUTO",label:t("تحصيل جزئي وتوزيعه على أقدم الأقساط","Partial payment · apply to oldest installments")},
-      ...openInstallments.map(i=>({value:i.id,label:t("قسط #"+i.sequence+" · متبقي "+fmt(Number(i.amount)-Number(i.paidAmount)),"Installment #"+i.sequence+" · remaining "+fmt(Number(i.amount)-Number(i.paidAmount))}))
+      ...openInstallments.map(i => ({
+        value: i.id,
+        label: t(
+          "قسط #" + i.sequence + " · متبقي " + fmt(Number(i.amount) - Number(i.paidAmount)),
+          "Installment #" + i.sequence + " · remaining " + fmt(Number(i.amount) - Number(i.paidAmount))
+        )
+      }))
     ]:[{value:"PARTIAL",label:t("تحصيل مبلغ جزئي","Collect a partial amount")}])
   ];
   const target=await prompt(t("اختر طريقة التحصيل","Choose collection method"),openInstallments.length?"AUTO":"PARTIAL",{title:t("طريقة التحصيل","Collection method"),choices});
