@@ -24,7 +24,7 @@ export default function Settings() {
   const isSuperAdmin=user?.role==="SUPER_ADMIN";
   useEffect(()=>{
     let alive=true;
-    async()=>{
+    const load = async () => {
       setLoading(true);
       try{
         const requests=[api.get("/settings")];
@@ -35,7 +35,8 @@ export default function Settings() {
         if(isSuperAdmin) setFeatures({...defaultFeatures,...(results[1].data.features||{})});
       }catch(e){if(alive)toast.error(e.response?.data?.error||t("تعذر تحميل الإعدادات","Could not load settings"));}
       finally{if(alive)setLoading(false);}
-    }();
+    };
+    load();
     return()=>{alive=false};
   },[branch?.id,isSuperAdmin]);
   const update=(key,value)=>setForm(old=>({...old,[key]:value}));
