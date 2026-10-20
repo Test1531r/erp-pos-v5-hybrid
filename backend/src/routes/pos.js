@@ -42,7 +42,7 @@ router.post("/checkout", async (req, res) => {
     if (!branch) return res.status(400).json({ error: "الفرع غير موجود أو غير فعال" });
     const prefix = `INV-${branch.code}-${dayjs().format("YYYYMMDD")}`;
     const branchSettings = await prisma.branchSetting.upsert({ where: { branchId }, create: { branchId }, update: {} });
-    if (branchSettings.requireShiftForPOS && req.user.role === "CASHIER") {
+    if (req.user.role === "CASHIER") {
       const openShift = await prisma.cashierShift.findFirst({ where: { branchId, userId: req.user.id, status: "OPEN" } });
       if (!openShift) return res.status(409).json({ error: "يجب فتح وردية الكاشير قبل تنفيذ عملية بيع" });
     }
