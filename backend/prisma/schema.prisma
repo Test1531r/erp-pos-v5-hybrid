@@ -288,9 +288,13 @@ model Product {
   imageUrl    String?
   lowStockQty Int      @default(5)
   isActive    Boolean  @default(true)
+  parentProductId String?
+  variantLabel String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  parentProduct Product? @relation("ProductVariants", fields: [parentProductId], references: [id], onDelete: Restrict)
+  variants      Product[] @relation("ProductVariants")
   category      Category?      @relation(fields: [categoryId], references: [id])
   inventory     Inventory[]
   imeiRecords   ProductIMEI[]
