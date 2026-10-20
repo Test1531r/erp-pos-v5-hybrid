@@ -85,7 +85,7 @@ router.get("/profit-loss", requireBranch, async (req,res)=>{
   try{
     const parseDate = (value, label, endOfDay = false) => {
       if (value === undefined || value === "") return null;
-      if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+      if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
         const error = new Error(`تاريخ ${label} غير صالح؛ استخدم YYYY-MM-DD`);
         error.status = 400;
         throw error;
