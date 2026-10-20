@@ -83,8 +83,24 @@ router.get("/dashboard", async (req, res) => {
 
 router.get("/profit-loss", requireBranch, async (req,res)=>{
   try{
-    const from=req.query.from?new Date(req.query.from):dayjs().startOf("month").toDate();
-    const to=req.query.to?dayjs(req.query.to).endOf("day").toDate():new Date();
+    const parseDate = (value, label, endOfDay = false) => {
+      if (value === undefined || value === "") return null;
+      if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+        const error = new Error(`تاريخ ${label} غير صالح؛ استخدم YYYY-MM-DD`);
+        error.status = 400;
+        throw error;
+      }
+      const parsed = dayjs(value);
+      if (!parsed.isValid() || parsed.format("YYYY-MM-DD") !== value) {
+        const error = new Error(`تاريخ ${label} غير صالح`);
+        error.status = 400;
+        throw error;
+      }
+      return (endOfDay ? parsed.endOf("day") : parsed.startOf("day")).toDate();
+    };
+    const from = parseDate(req.query.from, "البداية") || dayjs().startOf("month").toDate();
+    const to = parseDate(req.query.to, "النهاية", true) || new Date();
+    if (from > to) return res.status(400).json({ error: "تاريخ البداية يجب أن يسبق تاريخ النهاية" });
     const base={branchId:req.branchId,createdAt:{gte:from,lte:to}};
     const [sales,returns,expenses,items,purchases]=await prisma.$transaction([
       prisma.invoice.aggregate({where:base,_sum:{total:true,taxAmount:true,discountAmount:true},_count:{id:true}}),
@@ -95,7 +111,11 @@ router.get("/profit-loss", requireBranch, async (req,res)=>{
     ]);
     const revenue=Number(sales._sum.total||0),ret=Number(returns._sum.total||0),exp=Number(expenses._sum.amount||0),cogs=items.reduce((n,i)=>n+i.quantity*Number(i.costPrice),0),netSales=revenue-ret,grossProfit=netSales-cogs;
     res.json({from,to,revenue,returns:ret,netSales,cogs,grossProfit,expenses:exp,netProfit:grossProfit-exp,tax:Number(sales._sum.taxAmount||0),discount:Number(sales._sum.discountAmount||0),invoiceCount:sales._count.id||0,purchases:Number(purchases._sum.total||0),purchasePaid:Number(purchases._sum.paidAmount||0)});
-  }catch(err){res.status(500).json({error:"تعذر إنشاء تقرير الأرباح والخسائر"});}
+  }catch(err){
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    console.error("[Profit-loss report]", err);
+    res.status(500).json({error:"تعذر إنشاء تقرير الأرباح والخسائر"});
+  }
 });
 
 export default router;
