@@ -381,7 +381,7 @@ export function Inventory() {
                 </div>
               </div>
             </div>
-            <Field label={t("حد المخزون المنخفض", "Low stock threshold")}><Input type="number" min="0" value={form.lowStockQty ?? 5} onChange={(e) => setForm({ ...form, lowStockQty: Math.max(0, parseInt(e.target.value, 10) || 0) }} /></Field>
+            <Field label={t("حد المخزون المنخفض", "Low stock threshold")}><Input type="number" min="0" value={form.lowStockQty ?? 5} onChange={(e) => setForm({ ...form, lowStockQty: Math.max(0, parseInt(e.target.value, 10) || 0) })} /></Field>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.hasIMEI || false} onChange={(e) => setForm({ ...form, hasIMEI: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
