@@ -76,6 +76,8 @@ export const useStore = create(
       // UI
       activeModule: "dashboard",
       sidebarOpen: true,
+      language: "ar",
+      setLanguage: (language) => set({ language: language === "en" ? "en" : "ar" }),
 
       // ── AUTH ──────────────────────────────
       login: async (username, password, branchId) => {
@@ -387,7 +389,7 @@ export const useStore = create(
     }),
     {
       name: "erp-pos-store",
-      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt }),
+      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, language: s.language || "ar", products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt }),
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
           state.isAuthenticated = true;
