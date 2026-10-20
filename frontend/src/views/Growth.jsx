@@ -4,6 +4,9 @@ import { Gift, Smartphone, Star, Plus, PackageCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function Growth() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const activeBranch = useStore((s) => s.activeBranch);
   const products = useStore((s) => s.products);
   const [tab, setTab] = useState("promotions");
@@ -13,7 +16,7 @@ export default function Growth() {
   const [loyalty, setLoyalty] = useState(null);
   const [loyaltyCustomerId, setLoyaltyCustomerId] = useState("");
   const [p, setP] = useState({ name: "", code: "", type: "PERCENT", value: "", startsAt: "", endsAt: "" });
-  const [t, setT] = useState({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" });
+  const [tradeForm, setT] = useState({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" });
 
   const load = async () => {
     try {
@@ -33,7 +36,7 @@ export default function Growth() {
   };
   const createTrade = async () => {
     try {
-      await api.post("/growth/trade-ins", { ...t, quotedValue: Number(t.quotedValue) });
+      await api.post("/growth/trade-ins", { ...tradeForm, quotedValue: Number(tradeForm.quotedValue) });
       toast.success("تم تسجيل Trade-In"); setT({ customerId: "", deviceBrand: "", deviceModel: "", imei: "", condition: "", quotedValue: "" }); load();
     } catch (e) { toast.error(e.response?.data?.error || "تعذر التسجيل"); }
   };
@@ -56,11 +59,11 @@ export default function Growth() {
     catch (e) { toast.error(e.response?.data?.error || "تعذر إدخال الجهاز للمخزون"); }
   };
 
-  return <div className="p-6 space-y-5" dir="rtl">
-    <div><h1 className="text-2xl font-bold">العروض والولاء و Trade-In</h1><p className="text-sm text-slate-500">مركز نمو المبيعات وخدمة العملاء</p></div>
+  return <div className="p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
+    <div><h1 className="text-2xl font-bold">{t("العروض والولاء و Trade-In", "Promotions, loyalty & trade-in")}</h1><p className="text-sm text-slate-500">{t("مركز نمو المبيعات وخدمة العملاء", "Sales growth and customer engagement center")}</p></div>
     <div className="flex gap-2 flex-wrap">
-      <button onClick={() => setTab("promotions")} className={`px-4 py-2 rounded-xl ${tab === "promotions" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Gift className="w-4 h-4 inline ml-1" />العروض</button>
-      <button onClick={() => setTab("loyalty")} className={`px-4 py-2 rounded-xl ${tab === "loyalty" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Star className="w-4 h-4 inline ml-1" />الولاء</button>
+      <button onClick={() => setTab("promotions")} className={`px-4 py-2 rounded-xl ${tab === "promotions" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Gift className="w-4 h-4 inline ml-1" />{t("العروض", "Promotions")}</button>
+      <button onClick={() => setTab("loyalty")} className={`px-4 py-2 rounded-xl ${tab === "loyalty" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Star className="w-4 h-4 inline ml-1" />{t("الولاء", "Loyalty")}</button>
       <button onClick={() => setTab("trade")} className={`px-4 py-2 rounded-xl ${tab === "trade" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Smartphone className="w-4 h-4 inline ml-1" />Trade-In</button>
     </div>
 
@@ -68,7 +71,7 @@ export default function Growth() {
       <div className="bg-white border rounded-2xl p-4 grid md:grid-cols-7 gap-2">
         <input className="border rounded-xl px-3" placeholder="اسم العرض" value={p.name} onChange={e => setP({ ...p, name: e.target.value })} />
         <input className="border rounded-xl px-3" placeholder="كود" value={p.code} onChange={e => setP({ ...p, code: e.target.value })} />
-        <select className="border rounded-xl px-3" value={p.type} onChange={e => setP({ ...p, type: e.target.value })}><option value="PERCENT">نسبة %</option><option value="FIXED">مبلغ ثابت</option></select>
+        <select className="border rounded-xl px-3" value={p.type} onChange={e => setP({ ...p, type: e.target.value })}><option value="PERCENT">{t("نسبة %", "Percentage %")}</option><option value="FIXED">{t("مبلغ ثابت", "Fixed amount")}</option></select>
         <input type="number" className="border rounded-xl px-3" placeholder="القيمة" value={p.value} onChange={e => setP({ ...p, value: e.target.value })} />
         <input type="datetime-local" className="border rounded-xl px-2" value={p.startsAt} onChange={e => setP({ ...p, startsAt: e.target.value })} />
         <input type="datetime-local" className="border rounded-xl px-2" value={p.endsAt} onChange={e => setP({ ...p, endsAt: e.target.value })} />
@@ -79,24 +82,24 @@ export default function Growth() {
 
     {tab === "loyalty" && <>
       <div className="bg-white border rounded-2xl p-4 flex gap-2 flex-wrap items-center">
-        <select className="border rounded-xl px-3 py-2 min-w-64" value={loyaltyCustomerId} onChange={e => { setLoyaltyCustomerId(e.target.value); loadLoyalty(e.target.value); }}><option value="">اختر العميل</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.phone ? `- ${c.phone}` : ""}</option>)}</select>
-        <button onClick={() => loadLoyalty()} className="border px-4 py-2 rounded-xl">تحديث</button>
-        <button onClick={adjustPoints} className="bg-indigo-600 text-white px-4 py-2 rounded-xl">تسوية نقاط</button>
+        <select className="border rounded-xl px-3 py-2 min-w-64" value={loyaltyCustomerId} onChange={e => { setLoyaltyCustomerId(e.target.value); loadLoyalty(e.target.value); }}><option value="">{t("اختر العميل", "Select customer")}</option>{customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.phone ? `- ${c.phone}` : ""}</option>)}</select>
+        <button onClick={() => loadLoyalty()} className="border px-4 py-2 rounded-xl">{t("تحديث", "Refresh")}</button>
+        <button onClick={adjustPoints} className="bg-indigo-600 text-white px-4 py-2 rounded-xl">{t("تسوية نقاط", "Adjust points")}</button>
       </div>
-      {loyalty && <div className="grid md:grid-cols-3 gap-3"><div className="bg-white border rounded-2xl p-5"><p className="text-sm text-slate-500">رصيد {loyalty.customer.name}</p><p className="text-3xl font-bold text-amber-600 mt-2">{loyalty.customer.loyaltyPoints} نقطة</p></div><div className="md:col-span-2 bg-white border rounded-2xl overflow-hidden"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-right">التاريخ</th><th>النوع</th><th>النقاط</th><th>ملاحظات</th></tr></thead><tbody>{loyalty.transactions.map(x => <tr className="border-t" key={x.id}><td className="p-3">{new Date(x.createdAt).toLocaleString()}</td><td className="text-center">{x.type}</td><td className={`text-center font-bold ${x.points >= 0 ? "text-green-600" : "text-red-600"}`}>{x.points}</td><td>{x.notes || "—"}</td></tr>)}</tbody></table></div></div>}
+      {loyalty && <div className="grid md:grid-cols-3 gap-3"><div className="bg-white border rounded-2xl p-5"><p className="text-sm text-slate-500">رصيد {loyalty.customer.name}</p><p className="text-3xl font-bold text-amber-600 mt-2">{loyalty.customer.loyaltyPoints} نقطة</p></div><div className="md:col-span-2 bg-white border rounded-2xl overflow-hidden"><table className="w-full text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-right">{t("التاريخ", "Date")}</th><th>{t("النوع", "Type")}</th><th>{t("النقاط", "Points")}</th><th>{t("ملاحظات", "Notes")}</th></tr></thead><tbody>{loyalty.transactions.map(x => <tr className="border-t" key={x.id}><td className="p-3">{new Date(x.createdAt).toLocaleString()}</td><td className="text-center">{x.type}</td><td className={`text-center font-bold ${x.points >= 0 ? "text-green-600" : "text-red-600"}`}>{x.points}</td><td>{x.notes || "—"}</td></tr>)}</tbody></table></div></div>}
     </>}
 
     {tab === "trade" && <>
       <div className="bg-white border rounded-2xl p-4 grid md:grid-cols-7 gap-2">
-        <select className="border rounded-xl px-3" value={t.customerId} onChange={e => setT({ ...t, customerId: e.target.value })}><option value="">العميل (اختياري)</option>{customers.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
-        <input className="border rounded-xl px-3" placeholder="الماركة" value={t.deviceBrand} onChange={e => setT({ ...t, deviceBrand: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder="الموديل" value={t.deviceModel} onChange={e => setT({ ...t, deviceModel: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder="IMEI" value={t.imei} onChange={e => setT({ ...t, imei: e.target.value })} />
-        <input className="border rounded-xl px-3" placeholder="الحالة" value={t.condition} onChange={e => setT({ ...t, condition: e.target.value })} />
-        <input type="number" className="border rounded-xl px-3" placeholder="التقييم" value={t.quotedValue} onChange={e => setT({ ...t, quotedValue: e.target.value })} />
+        <select className="border rounded-xl px-3" value={tradeForm.customerId} onChange={e => setT({ ...tradeForm, customerId: e.target.value })}><option value="">{t("العميل (اختياري)", "Customer (optional)")}</option>{customers.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
+        <input className="border rounded-xl px-3" placeholder="الماركة" value={tradeForm.deviceBrand} onChange={e => setT({ ...tradeForm, deviceBrand: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder="الموديل" value={tradeForm.deviceModel} onChange={e => setT({ ...tradeForm, deviceModel: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder="IMEI" value={tradeForm.imei} onChange={e => setT({ ...tradeForm, imei: e.target.value })} />
+        <input className="border rounded-xl px-3" placeholder={t("الحالة", "Status")} value={tradeForm.condition} onChange={e => setT({ ...tradeForm, condition: e.target.value })} />
+        <input type="number" className="border rounded-xl px-3" placeholder={t("التقييم", "Valuation")} value={tradeForm.quotedValue} onChange={e => setT({ ...tradeForm, quotedValue: e.target.value })} />
         <button onClick={createTrade} className="bg-indigo-600 text-white rounded-xl"><Plus className="w-4 h-4 inline" /> تسجيل</button>
       </div>
-      <div className="grid md:grid-cols-3 gap-3">{trades.map(x => <div key={x.id} className="bg-white border rounded-2xl p-4"><p className="font-bold">{x.deviceBrand} {x.deviceModel}</p><p className="text-xs font-mono text-slate-500">{x.imei || "بدون IMEI"}</p><p className="mt-2">الحالة: {x.status}</p><p className="font-bold text-indigo-600">تقييم: {Number(x.quotedValue).toLocaleString()}</p>{x.product && <p className="text-xs text-green-700 mt-2">مخزون: {x.product.name}</p>}{x.status !== "APPROVED" && <button onClick={() => receiveTrade(x)} className="mt-3 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs flex items-center gap-1"><PackageCheck className="w-4 h-4" />اعتماد وإدخال للمخزون</button>}</div>)}</div>
+      <div className="grid md:grid-cols-3 gap-3">{trades.map(x => <div key={x.id} className="bg-white border rounded-2xl p-4"><p className="font-bold">{x.deviceBrand} {x.deviceModel}</p><p className="text-xs font-mono text-slate-500">{x.imei || "بدون IMEI"}</p><p className="mt-2">الحالة: {x.status}</p><p className="font-bold text-indigo-600">تقييم: {Number(x.quotedValue).toLocaleString()}</p>{x.product && <p className="text-xs text-green-700 mt-2">مخزون: {x.product.name}</p>}{x.status !== "APPROVED" && <button onClick={() => receiveTrade(x)} className="mt-3 px-3 py-2 rounded-xl bg-green-50 text-green-700 text-xs flex items-center gap-1"><PackageCheck className="w-4 h-4" />{t("اعتماد وإدخال للمخزون", "Approve and add to inventory")}</button>}</div>)}</div>
     </>}
   </div>;
 }

@@ -179,7 +179,9 @@ function CustomerModal({ onClose, onSelect }) {
 
 // ── CHECKOUT MODAL ──────────────────────────────────────────
 function CheckoutModal({ onClose }) {
-  const { cartItems, cartCustomer, cartDiscount, cartTaxRate, checkout, checkoutLoading, lastInvoice, getCartTotals, validateIMEIs } = useStore();
+  const { cartItems, cartCustomer, cartDiscount, cartTaxRate, checkout, checkoutLoading, lastInvoice, getCartTotals, validateIMEIs, language } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const totals = getCartTotals();
   const [method, setMethod] = useState("CASH");
   const [amountPaid, setAmountPaid] = useState(totals.total.toFixed(2));
@@ -213,7 +215,7 @@ function CheckoutModal({ onClose }) {
         const approved = (Array.isArray(data) ? data : []).find(r => r.id === discountApprovalId && !r.entityId);
         if (alive && approved) {
           setDiscountApprovalStatus("APPROVED");
-          toast.success("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.");
+          toast.success(t("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.", "Discount approved. You can complete the sale."));
         }
       } catch {}
     };
@@ -250,9 +252,9 @@ function CheckoutModal({ onClose }) {
       });
       setDiscountApprovalId(data.id);
       setDiscountApprovalStatus("PENDING");
-      toast.success("تم إرسال طلب الخصم. سيتم التحقق من الموافقة تلقائيًا.");
+      toast.success(t("تم إرسال طلب الخصم. سيتم التحقق من الموافقة تلقائيًا.", "Discount request sent. Approval will be checked automatically."));
     } catch (e) {
-      toast.error(e.response?.data?.error || "تعذر إرسال طلب الموافقة");
+      toast.error(e.response?.data?.error || t("تعذر إرسال طلب الموافقة", "Could not send approval request"));
     } finally {
       setDiscountApprovalLoading(false);
     }
@@ -261,44 +263,44 @@ function CheckoutModal({ onClose }) {
   const handlePrint = () => {
     const inv = lastInvoice;
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>فاتورة</title>
+    win.document.write(`<!DOCTYPE html><html lang="${en ? "en" : "ar"}" dir="${en ? "ltr" : "rtl"}"><head><meta charset="UTF-8"><title>${t("فاتورة", "Invoice")}</title>
     <style>body{font-family:Arial;width:80mm;margin:0 auto;font-size:12px}
     .c{text-align:center}.b{font-weight:bold}.sep{border-top:1px dashed #000;margin:6px 0}
     .row{display:flex;justify-content:space-between}</style></head><body>
-    <div class="c"><h2>📱 متجر الإلكترونيات</h2><p class="b">فاتورة مبيعات</p>
-    <p>${inv.invoiceNumber}</p><p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p></div>
+    <div class="c"><h2>${t("متجر الإلكترونيات", "Electronics store")}</h2><p class="b">${t("فاتورة مبيعات", "Sales invoice")}</p>
+    <p>${inv.invoiceNumber}</p><p>${new Date(inv.createdAt).toLocaleString(en ? "en-US" : "ar-EG")}</p></div>
     <div class="sep"></div>
     ${(inv.items || []).map((i) => `<div><p class="b">${i.productName}</p>
     <div class="row"><span>${i.quantity} × ${parseFloat(i.unitPrice).toFixed(2)}</span><span>${parseFloat(i.lineTotal).toFixed(2)}</span></div>
     ${i.imeiNumbers?.length ? `<p style="font-size:10px">IMEI: ${i.imeiNumbers.join(", ")}</p>` : ""}</div><div class="sep" style="border-style:dotted"></div>`).join("")}
-    <div class="row"><span>المجموع</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
-    ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>خصم</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
-    ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>ضريبة</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
-    <div class="sep"></div><div class="row b" style="font-size:14px"><span>الإجمالي</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
+    <div class="row"><span>${t("المجموع", "Subtotal")}</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
+    ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>${t("خصم", "Discount")}</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
+    ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>${t("ضريبة", "Tax")}</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
+    <div class="sep"></div><div class="row b" style="font-size:14px"><span>${t("الإجمالي", "Total")}</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
     <div class="sep"></div>
-    <div class="row"><span>المدفوع</span><span>${parseFloat(inv.amountPaid).toFixed(2)}</span></div>
-    ${parseFloat(inv.changeGiven) > 0 ? `<div class="row b"><span>الباقي</span><span>${parseFloat(inv.changeGiven).toFixed(2)}</span></div>` : ""}
-    <div class="sep"></div><div class="c"><p>شكراً لتسوقكم معنا!</p><p>الإرجاع خلال 7 أيام بالفاتورة</p></div>
+    <div class="row"><span>${t("المدفوع", "Paid")}</span><span>${parseFloat(inv.amountPaid).toFixed(2)}</span></div>
+    ${parseFloat(inv.changeGiven) > 0 ? `<div class="row b"><span>${t("الباقي", "Change due")}</span><span>${parseFloat(inv.changeGiven).toFixed(2)}</span></div>` : ""}
+    <div class="sep"></div><div class="c"><p>${t("شكراً لتسوقكم معنا!", "Thank you for shopping with us!")}</p><p>${t("الإرجاع خلال 7 أيام بالفاتورة", "Returns within 7 days with invoice")}</p></div>
     </body></html>`);
     win.document.close(); win.focus(); win.print(); win.close();
   };
 
   if (receipt) return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div dir={en ? "ltr" : "rtl"} className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl text-center p-8">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 className="w-10 h-10 text-green-600" />
         </div>
-        <h3 className="text-xl font-bold text-slate-800">تم البيع بنجاح!</h3>
+        <h3 className="text-xl font-bold text-slate-800">{t("تم البيع بنجاح!", "Sale completed successfully!")}</h3>
         <p className="text-slate-500 text-sm mt-1 font-mono">{lastInvoice?.invoiceNumber}</p>
         <div className="grid grid-cols-2 gap-3 mt-5">
-          <div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">الإجمالي</p><p className="font-bold text-lg">{parseFloat(lastInvoice?.total || 0).toFixed(2)}</p></div>
-          <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-slate-500">الباقي</p><p className="font-bold text-lg text-green-600">{receipt.change?.toFixed(2)}</p></div>
+          <div className="bg-slate-50 rounded-xl p-3"><p className="text-xs text-slate-500">{t("الإجمالي", "Total")}</p><p className="font-bold text-lg">{parseFloat(lastInvoice?.total || 0).toFixed(2)}</p></div>
+          <div className="bg-green-50 rounded-xl p-3"><p className="text-xs text-slate-500">{t("الباقي", "Change due")}</p><p className="font-bold text-lg text-green-600">{receipt.change?.toFixed(2)}</p></div>
         </div>
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 border border-slate-200 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50">بيع جديد</button>
+          <button onClick={onClose} className="flex-1 border border-slate-200 py-2.5 rounded-xl text-sm font-medium hover:bg-slate-50">{t("بيع جديد", "New sale")}</button>
           <button onClick={handlePrint} className="flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 hover:bg-indigo-700">
-            <Printer className="w-4 h-4" /> طباعة
+            <Printer className="w-4 h-4" /> {t("طباعة", "Print")}
           </button>
         </div>
       </div>
@@ -309,33 +311,33 @@ function CheckoutModal({ onClose }) {
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-          <h3 className="font-bold text-slate-800 text-lg">إتمام البيع</h3>
+          <h3 className="font-bold text-slate-800 text-lg">{t("إتمام البيع", "Complete sale")}</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
         </div>
         <div className="p-5 space-y-5">
           {/* Summary */}
           <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
-            <div className="flex justify-between text-slate-600"><span>المجموع الفرعي</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
-            {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
-            {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
-            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>الإجمالي</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
+            <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
+            {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>{t("خصم", "Discount")}</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
+            {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>{t("ضريبة", "Tax")} ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
+            <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>{t("الإجمالي", "Total")}</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
             {cartCustomer && <div className="text-indigo-600 text-xs flex items-center gap-1"><User className="w-3 h-3" /> {cartCustomer.name}</div>}
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">كود العرض / الكوبون</label>
-              <input value={promotionCode} onChange={(e)=>setPromotionCode(e.target.value.toUpperCase())} placeholder="مثال: SUMMER10" className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">{t("كود العرض / الكوبون", "Promotion / coupon code")}</label>
+              <input value={promotionCode} onChange={(e)=>setPromotionCode(e.target.value.toUpperCase())} placeholder={t("مثال: SUMMER10", "e.g. SUMMER10")} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </div>
             <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">استبدال نقاط الولاء {cartCustomer ? `(المتاح ${cartCustomer.loyaltyPoints || 0})` : ""}</label>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">{t("استبدال نقاط الولاء", "Redeem loyalty points")} {cartCustomer ? `(المتاح ${cartCustomer.loyaltyPoints || 0})` : ""}</label>
               <input type="number" min="0" max={cartCustomer?.loyaltyPoints || 0} disabled={!cartCustomer} value={redeemPoints} onChange={(e)=>setRedeemPoints(Math.max(0, Math.min(Number(e.target.value)||0, cartCustomer?.loyaltyPoints||0)))} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </div>
           </div>
 
           {needsDiscountApproval && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
-              <p className="text-sm font-semibold text-amber-900">هذا الخصم يتجاوز حدك المسموح ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
+              <p className="text-sm font-semibold text-amber-900">{t("هذا الخصم يتجاوز حدك المسموح", "This discount exceeds your allowed limit")} ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
               {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، يمكنك إتمام البيع." : "بانتظار اعتماد المدير..."}</p>}
               <button type="button" onClick={requestDiscountApproval} disabled={discountApprovalLoading || !!discountApprovalId} className="w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
                 {discountApprovalLoading ? "جارٍ إرسال الطلب..." : discountApprovalStatus === "APPROVED" ? "تمت الموافقة" : discountApprovalId ? "تم إرسال الطلب — بانتظار المدير" : "طلب موافقة المدير على الخصم"}
@@ -354,19 +356,19 @@ function CheckoutModal({ onClose }) {
 
           {/* Payment method */}
           <div>
-            <p className="text-sm font-semibold text-slate-700 mb-2">طريقة الدفع</p>
+            <p className="text-sm font-semibold text-slate-700 mb-2">{t("طريقة الدفع", "Payment method")}</p>
             <div className="grid grid-cols-3 gap-2">
               {PAYMENT_METHODS.map(({ value, label, icon: Icon, color, bg }) => (
                 <button key={value} onClick={() => setMethod(value)} className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-all ${method === value ? bg + " border-2" : "border-slate-200 hover:bg-slate-50"}`}>
                   <Icon className={`w-5 h-5 ${method === value ? color : "text-slate-400"}`} />
-                  {label}
+                  {t(label, ({ "كاش": "Cash", "كارت": "Card", "فودافون كاش": "Vodafone Cash", "إنستاباي": "InstaPay", "تحويل بنكي": "Bank transfer", "آجل / أقساط": "Credit / installments" })[label] || label)}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="flex items-center justify-between bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-            <div><p className="text-sm font-semibold text-indigo-800">دفع مختلط</p><p className="text-xs text-indigo-600">قسّم الفاتورة بين كاش / كارت / فودافون / إنستاباي / بنك</p></div>
+            <div><p className="text-sm font-semibold text-indigo-800">{t("دفع مختلط", "Split payment")}</p><p className="text-xs text-indigo-600">{t("قسّم الفاتورة بين كاش / كارت / فودافون / إنستاباي / بنك", "Split the invoice across cash, card, Vodafone Cash, InstaPay or bank")}</p></div>
             <button onClick={() => setMixed(!mixed)} className={`w-12 h-7 rounded-full p-1 transition-colors ${mixed ? "bg-indigo-600" : "bg-slate-300"}`}><span className={`block w-5 h-5 bg-white rounded-full transition-transform ${mixed ? "-translate-x-5" : ""}`} /></button>
           </div>
 
@@ -379,27 +381,27 @@ function CheckoutModal({ onClose }) {
               );
               return <div key={idx} className="grid grid-cols-12 gap-2 border rounded-xl p-2">
               <select value={p.method} onChange={e => setSplits(splits.map((x,i)=>i===idx?{...x,method:e.target.value,accountId:""}:x))} className="col-span-4 border rounded-lg px-2 py-2 text-xs">{PAYMENT_METHODS.filter(m => m.value !== "CREDIT").map(m=><option key={m.value} value={m.value}>{m.label}</option>)}</select>
-              <select value={p.accountId} onChange={e => setSplits(splits.map((x,i)=>i===idx?{...x,accountId:e.target.value}:x))} className="col-span-5 border rounded-lg px-2 py-2 text-xs"><option value="">الحساب الافتراضي</option>{allowed.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
+              <select value={p.accountId} onChange={e => setSplits(splits.map((x,i)=>i===idx?{...x,accountId:e.target.value}:x))} className="col-span-5 border rounded-lg px-2 py-2 text-xs"><option value="">{t("الحساب الافتراضي", "Default account")}</option>{allowed.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select>
               <input type="number" value={p.amount} onChange={e => setSplits(splits.map((x,i)=>i===idx?{...x,amount:e.target.value}:x))} placeholder="0.00" className="col-span-3 border rounded-lg px-2 py-2 text-xs" />
             </div>})}
-            <div className="flex items-center justify-between text-sm"><button onClick={() => setSplits([...splits,{method:"CASH",amount:"",accountId:""}])} className="text-indigo-600 font-medium flex items-center gap-1"><Plus className="w-3 h-3"/>إضافة طريقة</button><span className={Math.abs(splitTotal-totals.total)<0.01?"text-green-600 font-bold":"text-amber-600 font-bold"}>المقسّم: {splitTotal.toFixed(2)} / {totals.total.toFixed(2)}</span></div>
+            <div className="flex items-center justify-between text-sm"><button onClick={() => setSplits([...splits,{method:"CASH",amount:"",accountId:""}])} className="text-indigo-600 font-medium flex items-center gap-1"><Plus className="w-3 h-3"/>{t("إضافة طريقة", "Add payment method")}</button><span className={Math.abs(splitTotal-totals.total)<0.01?"text-green-600 font-bold":"text-amber-600 font-bold"}>المقسّم: {splitTotal.toFixed(2)} / {totals.total.toFixed(2)}</span></div>
           </div>}
 
           {method === "CREDIT" && !mixed && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-3">
-              <p className="text-sm font-semibold text-amber-800">بيع آجل / أقساط</p>
-              {!cartCustomer && <p className="text-xs text-red-600">يجب اختيار عميل من السلة أولاً.</p>}
+              <p className="text-sm font-semibold text-amber-800">{t("بيع آجل / أقساط", "Credit sale / installments")}</p>
+              {!cartCustomer && <p className="text-xs text-red-600">{t("يجب اختيار عميل من السلة أولاً.", "Select a customer in the cart first.")}</p>}
               <div className="grid grid-cols-3 gap-2">
-                <div><label className="text-[11px] text-slate-500">تاريخ الاستحقاق</label><input type="date" value={credit.dueDate} onChange={e=>setCredit({...credit,dueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
-                <div><label className="text-[11px] text-slate-500">عدد الأقساط</label><input type="number" min="0" max="60" value={credit.installmentsCount} onChange={e=>setCredit({...credit,installmentsCount:Number(e.target.value)})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
-                <div><label className="text-[11px] text-slate-500">أول قسط</label><input type="date" value={credit.firstDueDate} onChange={e=>setCredit({...credit,firstDueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
+                <div><label className="text-[11px] text-slate-500">{t("تاريخ الاستحقاق", "Due date")}</label><input type="date" value={credit.dueDate} onChange={e=>setCredit({...credit,dueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
+                <div><label className="text-[11px] text-slate-500">{t("عدد الأقساط", "Installment count")}</label><input type="number" min="0" max="60" value={credit.installmentsCount} onChange={e=>setCredit({...credit,installmentsCount:Number(e.target.value)})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
+                <div><label className="text-[11px] text-slate-500">{t("أول قسط", "First installment")}</label><input type="date" value={credit.firstDueDate} onChange={e=>setCredit({...credit,firstDueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
               </div>
             </div>
           )}
 
           {/* Amount paid */}
           {!mixed && method !== "CREDIT" && <div>
-            <label className="text-sm font-semibold text-slate-700 mb-2 block">المبلغ المدفوع</label>
+            <label className="text-sm font-semibold text-slate-700 mb-2 block">{t("المبلغ المدفوع", "Amount paid")}</label>
             <input
               type="number" value={amountPaid} onChange={(e) => setAmountPaid(e.target.value)}
               className="w-full border-2 border-indigo-200 rounded-xl py-3 px-4 text-2xl font-bold text-center focus:outline-none focus:border-indigo-500"
@@ -410,10 +412,10 @@ function CheckoutModal({ onClose }) {
               {[...new Set([Math.ceil(totals.total / 10) * 10, Math.ceil(totals.total / 50) * 50, Math.ceil(totals.total / 100) * 100, Math.ceil(totals.total / 500) * 500])].filter((v) => v >= totals.total).slice(0, 4).map((v) => (
                 <button key={v} onClick={() => setAmountPaid(v.toFixed(2))} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-medium">{v.toFixed(0)} ج</button>
               ))}
-              <button onClick={() => setAmountPaid(totals.total.toFixed(2))} className="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg font-medium">المبلغ بالظبط</button>
+              <button onClick={() => setAmountPaid(totals.total.toFixed(2))} className="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg font-medium">{t("المبلغ بالظبط", "Exact amount")}</button>
             </div>
             {paid >= totals.total && <p className="text-green-600 text-sm font-medium mt-2">الباقي: {change.toFixed(2)} ج</p>}
-            {paid > 0 && paid < totals.total && <p className="text-red-500 text-sm mt-2">ناقص: {(totals.total - paid).toFixed(2)} ج</p>}
+            {paid > 0 && paid < totals.total && <p className="text-red-500 text-sm mt-2">{t("ناقص:", "Short by:")} {(totals.total - paid).toFixed(2)} ج</p>}
           </div>}
         </div>
 
@@ -529,7 +531,9 @@ function ProductCard({ product, stock, onAdd }) {
 export default function POS() {
   const { confirm } = useDialog();
   const { cartItems, cartCustomer, cartDiscount, cartTaxRate, cartNotes, searchQuery, selectedCategory, categories, activeBranch,
-    addToCart, setCustomer, clearCustomer, setDiscount, setTaxRate, setNotes, clearCart, getCartTotals, getFilteredProducts, getStock, setSearch, setCategory, fetchProducts } = useStore();
+    addToCart, setCustomer, clearCustomer, setDiscount, setTaxRate, setNotes, clearCart, getCartTotals, getFilteredProducts, getStock, setSearch, setCategory, fetchProducts, language } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
 
   const [customerModal, setCustomerModal] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
@@ -552,7 +556,7 @@ export default function POS() {
   useEffect(() => { fetchProducts({ search: searchQuery, categoryId: selectedCategory }); }, [searchQuery, selectedCategory, activeBranch?.id]);
 
   return (
-    <div className="flex h-full overflow-hidden bg-slate-100" dir="rtl">
+    <div className="flex h-full overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
       {/* ── LEFT: PRODUCTS ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Search & Filter Bar */}
@@ -561,14 +565,14 @@ export default function POS() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               ref={searchRef} value={searchQuery} onChange={(e) => setSearch(e.target.value)}
-              placeholder="بحث بالاسم أو SKU أو الباركود... (F2)"
+              placeholder={t("بحث بالاسم أو SKU أو الباركود... (F2)", "Search by name, SKU or barcode... (F2)")}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pr-9 pl-9 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all"
             />
             {searchQuery && <button onClick={() => setSearch("")} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>}
           </div>
           {/* Category tabs */}
           <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
-            <button onClick={() => setCategory(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${!selectedCategory ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>الكل</button>
+            <button onClick={() => setCategory(null)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${!selectedCategory ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{t("الكل", "All")}</button>
             {categories.map((c) => (
               <button key={c.id} onClick={() => setCategory(selectedCategory === c.id ? null : c.id)} className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${selectedCategory === c.id ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>
                 {c.icon} {c.name}
@@ -578,15 +582,15 @@ export default function POS() {
         </div>
 
         {/* Count */}
-        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{filteredProducts.length} منتج</div>
+        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{filteredProducts.length} {t("منتج", "products")}</div>
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-3">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Package className="w-16 h-16 mb-3 opacity-20" />
-              <p className="text-lg font-medium">لا توجد منتجات</p>
-              <p className="text-sm mt-1">جرب بحثاً مختلفاً</p>
+              <p className="text-lg font-medium">{t("لا توجد منتجات", "No products found")}</p>
+              <p className="text-sm mt-1">{t("جرب بحثاً مختلفاً", "Try another search")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
@@ -602,11 +606,11 @@ export default function POS() {
         <div className="px-4 py-3 border-b flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5 text-indigo-600" />
-            <span className="font-bold text-slate-800">السلة</span>
+            <span className="font-bold text-slate-800">{t("السلة", "Cart")}</span>
             {cartItems.length > 0 && <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{itemCount}</span>}
           </div>
           {cartItems.length > 0 && (
-            <button onClick={async () => { if (await confirm("سيتم حذف جميع الأصناف من السلة الحالية.", { title: "مسح سلة البيع", danger: true, confirmLabel: "مسح السلة" })) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
+            <button onClick={async () => { if (await confirm(t("سيتم حذف جميع الأصناف من السلة الحالية.", "All items will be removed from the current cart."), { title: t("مسح سلة البيع", "Clear sales cart"), danger: true, confirmLabel: t("مسح السلة", "Clear cart") })) clearCart(); }} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors">
               <Trash2 className="w-4 h-4" />
             </button>
           )}
@@ -632,8 +636,8 @@ export default function POS() {
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-300">
               <ShoppingCart className="w-14 h-14 mb-3" />
-              <p className="text-sm font-medium">السلة فارغة</p>
-              <p className="text-xs mt-1">اضغط على المنتجات للإضافة</p>
+              <p className="text-sm font-medium">{t("السلة فارغة", "Cart is empty")}</p>
+              <p className="text-xs mt-1">{t("اضغط على المنتجات للإضافة", "Select products to add them")}</p>
             </div>
           ) : (
             cartItems.map((item) => <CartItem key={item.id} item={item} />)
@@ -644,11 +648,11 @@ export default function POS() {
         {cartItems.length > 0 && (
           <div className="px-4 py-3 border-t shrink-0 grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-slate-500">خصم (مبلغ)</label>
+              <label className="text-xs text-slate-500">{t("خصم (مبلغ)", "Discount (amount)")}</label>
               <input type="number" value={cartDiscount || ""} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} placeholder="0" className="w-full border rounded-lg px-2 py-1.5 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-indigo-400" min={0} />
             </div>
             <div>
-              <label className="text-xs text-slate-500">ضريبة %</label>
+              <label className="text-xs text-slate-500">{t("ضريبة %", "Tax %")}</label>
               <input type="number" value={cartTaxRate || ""} onChange={(e) => setTaxRate(parseFloat(e.target.value) || 0)} placeholder="0" className="w-full border rounded-lg px-2 py-1.5 text-sm mt-1 focus:outline-none focus:ring-1 focus:ring-indigo-400" min={0} max={100} />
             </div>
           </div>
@@ -658,11 +662,11 @@ export default function POS() {
         {cartItems.length > 0 && (
           <div className="px-4 pb-4 border-t pt-3 shrink-0 space-y-3">
             <div className="bg-slate-50 rounded-xl p-3 space-y-1.5 text-sm">
-              <div className="flex justify-between text-slate-600"><span>المجموع الفرعي</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
+              <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
               {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>خصم</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
               {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
               <div className="border-t pt-2 flex justify-between font-bold text-base">
-                <span>الإجمالي</span>
+                <span>{t("الإجمالي", "Total")}</span>
                 <span className="text-indigo-600">{totals.total.toFixed(2)} ج</span>
               </div>
             </div>

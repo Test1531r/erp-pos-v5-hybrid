@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/index.js";
-import { Smartphone, Lock, User, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Smartphone, Lock, User, Eye, EyeOff, Loader2, Globe } from "lucide-react";
 
 export default function Login() {
   const login = useStore((s) => s.login);
   const isAuthenticated = useStore((s) => s.isAuthenticated);
+  const language = useStore((s) => s.language);
+  const setLanguage = useStore((s) => s.setLanguage);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", password: "" });
   const [showPw, setShowPw] = useState(false);
@@ -15,7 +19,7 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated) navigate("/dashboard");
 
-  }, [isAuthenticated]);
+  }, [isAuthenticated, en]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +32,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+    <div dir={en ? "ltr" : "rtl"} className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative">\n      <button type="button" onClick={() => setLanguage(en ? "ar" : "en")} className="absolute top-5 right-5 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20"><Globe className="h-4 w-4"/>{en ? "العربية" : "English"}</button>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
@@ -36,12 +40,12 @@ export default function Login() {
             <Smartphone className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white">العشري <span className="text-indigo-300">| Alashry</span></h1>
-          <p className="text-indigo-300 mt-1">نظام إدارة الفروع والمبيعات والمخزون</p>
+          <p className="text-indigo-300 mt-1">{t("نظام إدارة الفروع والمبيعات والمخزون", "Branch, sales and inventory management")}</p>
         </div>
 
         {/* Form */}
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 shadow-2xl">
-          <h2 className="text-xl font-bold text-white mb-6 text-center">تسجيل الدخول</h2>
+          <h2 className="text-xl font-bold text-white mb-6 text-center">{t("تسجيل الدخول", "Sign in")}</h2>
 
           {error && (
             <div className="bg-red-500/20 border border-red-500/30 text-red-200 rounded-lg px-4 py-3 mb-4 text-sm">
@@ -55,7 +59,7 @@ export default function Login() {
               <input
                 type="text" value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                placeholder="اسم المستخدم"
+                placeholder={t("اسم المستخدم", "Username")}
                 className="w-full bg-white/10 border border-white/20 text-white placeholder-indigo-300 rounded-xl py-3 pr-10 pl-4 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
                 required
               />
@@ -66,7 +70,7 @@ export default function Login() {
               <input
                 type={showPw ? "text" : "password"} value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="كلمة المرور"
+                placeholder={t("كلمة المرور", "Password")}
                 className="w-full bg-white/10 border border-white/20 text-white placeholder-indigo-300 rounded-xl py-3 pr-10 pl-10 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                 required
               />
@@ -81,7 +85,7 @@ export default function Login() {
               type="submit" disabled={loading}
               className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 text-white font-bold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/50"
             >
-              {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري الدخول...</> : "دخول"}
+              {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> {t("جاري الدخول...", "Signing in...")}</> : t("دخول", "Sign in")}
             </button>
           </form>
 

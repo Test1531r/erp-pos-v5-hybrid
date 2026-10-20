@@ -21,7 +21,9 @@ function StatCard({ title, value, sub, icon: Icon, color, bg }) {
 const STATUS_AR = { RECEIVED: "مستلم", DIAGNOSING: "تشخيص", UNDER_REPAIR: "قيد الإصلاح", WAITING_PARTS: "انتظار قطع", COMPLETED: "مكتمل", DELIVERED: "تم التسليم" };
 
 export default function Dashboard() {
-  const { dashboard, fetchDashboard } = useStore();
+  const { dashboard, fetchDashboard, language } = useStore();
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const [loading, setLoading] = useState(false);
 
   const refresh = async () => { setLoading(true); await fetchDashboard(); setLoading(false); };
@@ -31,7 +33,7 @@ export default function Dashboard() {
     <div className="flex items-center justify-center h-full">
       <div className="text-center">
         <RefreshCw className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-2" />
-        <p className="text-slate-500">جاري التحميل...</p>
+        <p className="text-slate-500">{t("جاري التحميل...", "Loading dashboard...")}</p>
       </div>
     </div>
   );
@@ -39,24 +41,24 @@ export default function Dashboard() {
   const { today, month, pendingRepairs, totalCustomers, lowStockCount, lowStockItems, recentSales, repairsByStatus, topProducts, salesTrend, receivables, supplierDue, inventoryValue, accounts } = dashboard;
 
   return (
-    <div className="p-6 space-y-6">
+    <div dir={en ? "ltr" : "rtl"} className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">لوحة التحكم</h2>
-          <p className="text-slate-500 text-sm mt-1">{new Date().toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+          <h2 className="text-2xl font-bold text-slate-800">{t("لوحة التحكم", "Dashboard")}</h2>
+          <p className="text-slate-500 text-sm mt-1">{new Date().toLocaleDateString(en ? "en-US" : "ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
         </div>
         <button onClick={refresh} disabled={loading} className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors">
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> تحديث
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> {t("تحديث", "Refresh")}
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="مبيعات اليوم" value={`${(today?.revenue || 0).toLocaleString()} ج`} sub={`${today?.count || 0} فاتورة`} icon={DollarSign} color="text-green-600" bg="bg-green-100" />
-        <StatCard title="مبيعات الشهر" value={`${(month?.revenue || 0).toLocaleString()} ج`} sub={`صافي الربح: ${(month?.netProfit || 0).toLocaleString()} ج`} icon={TrendingUp} color="text-indigo-600" bg="bg-indigo-100" />
+        <StatCard title={t("مبيعات اليوم", "Today’s Sales")} value={`${(today?.revenue || 0).toLocaleString()} ج`} sub={`${today?.count || 0} فاتورة`} icon={DollarSign} color="text-green-600" bg="bg-green-100" />
+        <StatCard title={t("مبيعات الشهر", "Monthly Sales")} value={`${(month?.revenue || 0).toLocaleString()} ج`} sub={`صافي الربح: ${(month?.netProfit || 0).toLocaleString()} ج`} icon={TrendingUp} color="text-indigo-600" bg="bg-indigo-100" />
         <StatCard title="الصيانة المعلقة" value={pendingRepairs || 0} sub="تحتاج متابعة" icon={Wrench} color="text-orange-600" bg="bg-orange-100" />
-        <StatCard title="إجمالي العملاء" value={totalCustomers || 0} icon={Users} color="text-blue-600" bg="bg-blue-100" />
+        <StatCard title={t("إجمالي العملاء", "Total customers")} value={totalCustomers || 0} icon={Users} color="text-blue-600" bg="bg-blue-100" />
       </div>
 
       {/* Second row */}
@@ -64,7 +66,7 @@ export default function Dashboard() {
         <StatCard title="مخزون منخفض" value={lowStockCount || 0} sub="منتجات تحتاج تجديد" icon={AlertTriangle} color="text-red-600" bg="bg-red-100" />
         <StatCard title="صافي الشهر" value={`${(month?.netProfit || 0).toLocaleString()} ج`} sub={`إجمالي الربح: ${(month?.grossProfit || 0).toLocaleString()} ج`} icon={ShoppingBag} color="text-purple-600" bg="bg-purple-100" />
         <StatCard title="مديونيات العملاء" value={`${(receivables?.amount || 0).toLocaleString()} ج`} sub={`${receivables?.count || 0} حساب مفتوح`} icon={Users} color="text-amber-600" bg="bg-amber-100" />
-        <StatCard title="قيمة المخزون" value={`${(inventoryValue || 0).toLocaleString()} ج`} sub={`مستحق الموردين: ${(supplierDue || 0).toLocaleString()} ج`} icon={Package} color="text-cyan-600" bg="bg-cyan-100" />
+        <StatCard title={t("قيمة المخزون", "Inventory value")} value={`${(inventoryValue || 0).toLocaleString()} ج`} sub={`مستحق الموردين: ${(supplierDue || 0).toLocaleString()} ج`} icon={Package} color="text-cyan-600" bg="bg-cyan-100" />
       </div>
 
       {accounts?.length > 0 && (
@@ -115,7 +117,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Sales */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <h3 className="font-bold text-slate-800 mb-4">آخر المبيعات</h3>
+          <h3 className="font-bold text-slate-800 mb-4">{t("آخر المبيعات", "Recent sales")}</h3>
           <div className="space-y-2">
             {(recentSales || []).map((inv) => (
               <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">

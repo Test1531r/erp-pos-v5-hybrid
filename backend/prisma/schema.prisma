@@ -1057,3 +1057,10 @@ model PurchaseReturnItem {
   @@index([purchaseReturnId])
   @@map("purchase_return_items")
 }
+
+model SystemSetting {
+  id        String   @id @default("global")
+  features  Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  @@map("system_settings")
+}

@@ -2,7 +2,7 @@ name: Alashry CI
 
 on:
   push:
-    branches: [main, professional-v5-upgrade]
+    branches: [main, professional-v5-upgrade, bilingual-superadmin-settings]
   pull_request:
     branches: [main]
 

@@ -1,2 +1,79 @@
-import { useEffect,useState } from "react";import { api,useStore } from "../store/index.js";import { BarChart3,RefreshCw } from "lucide-react";import toast from "react-hot-toast";const f=v=>Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
-export default function Reports(){const branch=useStore(s=>s.activeBranch);const now=new Date(),first=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);const [from,setFrom]=useState(first),[to,setTo]=useState(now.toISOString().slice(0,10)),[d,setD]=useState(null);const load=async()=>{try{const {data}=await api.get(`/reports/profit-loss?from=${from}&to=${to}`);setD(data)}catch(e){toast.error(e.response?.data?.error||'تعذر تحميل التقرير')}};useEffect(()=>{if(branch?.id)load()},[branch?.id]);const card=(t,v,sub,cls='')=><div className="bg-white border rounded-2xl p-4"><p className="text-xs text-slate-500">{t}</p><p className={`text-2xl font-bold ${cls}`}>{f(v)}</p>{sub&&<p className="text-xs text-slate-400">{sub}</p>}</div>;return <div className="p-6 space-y-5" dir="rtl"><div className="flex justify-between items-center"><div><h1 className="text-2xl font-bold flex gap-2"><BarChart3 className="text-indigo-600"/>تقارير الإدارة</h1><p className="text-sm text-slate-500">أرباح وخسائر حقيقية تشمل تكلفة البضاعة والمرتجعات والمصروفات</p></div><div className="flex gap-2"><input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border rounded-xl px-3"/><input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border rounded-xl px-3"/><button onClick={load} className="p-2 bg-indigo-600 text-white rounded-xl"><RefreshCw className="w-4 h-4"/></button></div></div>{d&&<><div className="grid grid-cols-2 lg:grid-cols-4 gap-3">{card('إجمالي المبيعات',d.revenue,`${d.invoiceCount} فاتورة`,'text-indigo-600')}{card('المرتجعات',d.returns,null,'text-red-600')}{card('صافي المبيعات',d.netSales,null,'text-blue-600')}{card('تكلفة البضاعة COGS',d.cogs,null,'text-amber-600')}{card('إجمالي الربح',d.grossProfit,null,'text-green-600')}{card('المصروفات',d.expenses,null,'text-red-600')}{card('صافي الربح',d.netProfit,null,d.netProfit>=0?'text-green-700':'text-red-700')}{card('المشتريات',d.purchases,`مدفوع ${f(d.purchasePaid)}`,'text-slate-700')}</div><div className="bg-white border rounded-2xl p-5"><h2 className="font-bold mb-4">ملخص الربحية</h2><div className="space-y-3 text-sm"><div className="flex justify-between"><span>صافي المبيعات</span><b>{f(d.netSales)}</b></div><div className="flex justify-between"><span>− تكلفة البضاعة</span><b>{f(d.cogs)}</b></div><div className="border-t pt-2 flex justify-between text-green-700"><span>إجمالي الربح</span><b>{f(d.grossProfit)}</b></div><div className="flex justify-between"><span>− المصروفات التشغيلية</span><b>{f(d.expenses)}</b></div><div className="border-t pt-3 flex justify-between text-lg"><span className="font-bold">صافي الربح</span><b className={d.netProfit>=0?'text-green-700':'text-red-700'}>{f(d.netProfit)}</b></div></div></div></>}</div>}
+import { useCallback, useEffect, useState } from "react";
+import { api, useStore } from "../store/index.js";
+import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign } from "lucide-react";
+import toast from "react-hot-toast";
+
+const money = (value, locale) => Number(value || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const Field = ({ label, children }) => <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">{label}{children}</label>;
+
+export default function Reports() {
+  const branch = useStore(s => s.activeBranch);
+  const language = useStore(s => s.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
+  const locale = en ? "en-US" : "ar-EG";
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const [from, setFrom] = useState(first);
+  const [to, setTo] = useState(now.toISOString().slice(0, 10));
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!branch?.id) return;
+    if (from > to) { toast.error(t("تاريخ البداية يجب أن يسبق تاريخ النهاية", "Start date must be before end date")); return; }
+    setLoading(true);
+    try {
+      const response = await api.get(`/reports/profit-loss?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      setData(response.data);
+    } catch (error) {
+      toast.error(error.response?.data?.error || t("تعذر تحميل التقرير", "Could not load report"));
+    } finally { setLoading(false); }
+  }, [branch?.id, from, to, en]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const fmt = value => money(value, locale);
+  const card = (title, value, sub, Icon, tone) => (
+    <div key={title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3"><p className="text-sm text-slate-500">{title}</p><span className={`rounded-xl p-2 ${tone}`}><Icon className="h-5 w-5"/></span></div>
+      <p className="mt-3 text-2xl font-bold tracking-tight text-slate-900">{fmt(value)}</p>
+      {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
+    </div>
+  );
+
+  return <div dir={en ? "ltr" : "rtl"} className="space-y-5 p-4 md:p-6">
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div><h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><BarChart3 className="h-6 w-6 text-indigo-600"/>{t("تقارير الإدارة","Management reports")}</h1><p className="mt-1 text-sm text-slate-500">{t("تحليل الأرباح والخسائر وتكلفة البضاعة والمرتجعات والمصروفات","Profit and loss, cost of goods, returns and expenses")}</p></div>
+      <button disabled={loading} onClick={load} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}/>{t("تحديث التقرير","Refresh report")}</button>
+    </header>
+    <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+      <Field label={t("من تاريخ","From date")}><input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"/></Field>
+      <Field label={t("إلى تاريخ","To date")}><input type="date" value={to} min={from} onChange={e=>setTo(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"/></Field>
+      <p className="pb-2 text-xs text-slate-400">{t("يتم احتساب التقرير وفق الفترة والفرع المحددين.","Report reflects the selected period and branch.")}</p>
+    </section>
+    {!data && loading && <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">{t("جارٍ إعداد التقرير...","Preparing report...")}</div>}
+    {data && <>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {card(t("إجمالي المبيعات","Gross sales"),data.revenue,t(`${data.invoiceCount || 0} فاتورة`,`${data.invoiceCount || 0} invoices`),Receipt,"bg-indigo-50 text-indigo-700")}
+        {card(t("المرتجعات","Returns"),data.returns,null,RotateCcw,"bg-red-50 text-red-700")}
+        {card(t("صافي المبيعات","Net sales"),data.netSales,null,TrendingUp,"bg-blue-50 text-blue-700")}
+        {card(t("تكلفة البضاعة","Cost of goods sold"),data.cogs,"COGS",Package,"bg-amber-50 text-amber-700")}
+        {card(t("إجمالي الربح","Gross profit"),data.grossProfit,null,CircleDollarSign,"bg-emerald-50 text-emerald-700")}
+        {card(t("المصروفات","Expenses"),data.expenses,null,Wallet,"bg-rose-50 text-rose-700")}
+        {card(t("صافي الربح","Net profit"),data.netProfit,null,TrendingUp,data.netProfit>=0?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700")}
+        {card(t("المشتريات","Purchases"),data.purchases,t("المدفوع","Paid")+": "+fmt(data.purchasePaid),Package,"bg-slate-100 text-slate-700")}
+      </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="mb-4 text-lg font-bold text-slate-900">{t("ملخص الربحية","Profitability summary")}</h2>
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between gap-4"><span className="text-slate-600">{t("صافي المبيعات","Net sales")}</span><b>{fmt(data.netSales)}</b></div>
+          <div className="flex justify-between gap-4"><span className="text-slate-600">{t("ناقص: تكلفة البضاعة","Less: cost of goods sold")}</span><b>{fmt(data.cogs)}</b></div>
+          <div className="flex justify-between gap-4 border-t border-slate-100 pt-3 text-emerald-700"><span>{t("إجمالي الربح","Gross profit")}</span><b>{fmt(data.grossProfit)}</b></div>
+          <div className="flex justify-between gap-4"><span className="text-slate-600">{t("ناقص: المصروفات التشغيلية","Less: operating expenses")}</span><b>{fmt(data.expenses)}</b></div>
+          <div className="flex justify-between gap-4 border-t border-slate-200 pt-4 text-base"><span className="font-bold">{t("صافي الربح","Net profit")}</span><b className={data.netProfit>=0?"text-emerald-700":"text-red-700"}>{fmt(data.netProfit)}</b></div>
+        </div>
+      </section>
+    </>}
+  </div>;
+}

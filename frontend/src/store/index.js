@@ -10,6 +10,7 @@ export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api
 api.interceptors.request.use((config) => {
   const state = useStore.getState();
   if (state.token) config.headers.Authorization = `Bearer ${state.token}`;
+  config.headers["Accept-Language"] = state.language === "en" ? "en" : "ar";
   if (state.activeBranch?.id) config.headers["X-Branch-Id"] = state.activeBranch.id;
   return config;
 });
@@ -76,6 +77,10 @@ export const useStore = create(
       // UI
       activeModule: "dashboard",
       sidebarOpen: true,
+      language: "ar",
+      systemFeatures: {},
+      setSystemFeatures: (systemFeatures) => set({ systemFeatures: systemFeatures || {} }),
+      setLanguage: (language) => set({ language: language === "en" ? "en" : "ar" }),
 
       // ── AUTH ──────────────────────────────
       login: async (username, password, branchId) => {
@@ -283,7 +288,7 @@ export const useStore = create(
         } catch (err) {
           const networkFailure = !err.response && (err.code === "ERR_NETWORK" || err.message === "Network Error" || !navigator.onLine);
           const offlineEligible = paymentMethod === "CASH" && !paymentSplits && cartItems.every((i) => !i.hasIMEI) && !(extra?.promotionCode) && !(Number(extra?.redeemPoints) > 0);
-          if (networkFailure && offlineEligible) {
+          if (networkFailure && offlineEligible && get().systemFeatures?.offlineMode !== false) {
             const offlineTotals = get().getCartTotals();
             const offlineItems = cartItems.map((i) => ({ productId: i.productId, productName: i.name, sku: i.sku, quantity: i.quantity, unitPrice: i.unitPrice, discountPct: i.discountPct || 0, lineTotal: i.unitPrice * i.quantity * (1 - (i.discountPct || 0) / 100), imeiNumbers: [] }));
             const payload = {
@@ -356,12 +361,14 @@ export const useStore = create(
       // ── HYBRID / OFFLINE SYNC ───────────────
       setOnlineStatus: (value) => set({ isOnline: Boolean(value) }),
       queueOfflineSale: (payload) => {
+        if (get().systemFeatures?.offlineMode === false) return { error: get().language === "en" ? "Offline mode is disabled by the system administrator." : "وضع عدم الاتصال معطل بواسطة مسؤول النظام" };
         const id = (globalThis.crypto?.randomUUID?.() || `offline-${Date.now()}-${Math.random().toString(16).slice(2)}`);
         const op = { id, type: "SALE", status: "PENDING", createdAt: new Date().toISOString(), payload: { ...payload, clientOperationId: id }, error: null };
         set((state) => ({ offlineQueue: [...state.offlineQueue, op] }));
         return op;
       },
       syncOfflineQueue: async () => {
+        if (get().systemFeatures?.offlineMode === false || get().systemFeatures?.sync === false) return;
         if (!get().isOnline || get().syncInProgress || !get().token) return;
         const pending = get().offlineQueue.filter((x) => x.status === "PENDING" || x.status === "FAILED");
         if (!pending.length) { set({ lastSyncAt: new Date().toISOString() }); return; }
@@ -387,7 +394,7 @@ export const useStore = create(
     }),
     {
       name: "erp-pos-store",
-      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt }),
+      partialize: (s) => ({ token: s.token, user: s.user, activeBranch: s.activeBranch, cartTaxRate: s.cartTaxRate, sidebarOpen: s.sidebarOpen, language: s.language || "ar", products: s.products, categories: s.categories, inventoryMap: s.inventoryMap, offlineQueue: s.offlineQueue, lastSyncAt: s.lastSyncAt, systemFeatures: s.systemFeatures || {} }),
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
           state.isAuthenticated = true;

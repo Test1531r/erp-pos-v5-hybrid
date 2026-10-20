@@ -14,7 +14,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { api } from "../store";
+import { api, useStore } from "../store";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
 function Modal({ title, children, footer, onClose }) {
@@ -97,6 +97,9 @@ function Field({ label, children }) {
 }
 
 export default function Branches() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const { confirm } = useDialog();
   const [loading, setLoading] = useState(false);
 
@@ -210,14 +213,14 @@ export default function Branches() {
   }
 
   async function deleteBranch(id) {
-    if (!(await confirm("حذف الفرع إجراء حساس وقد يؤثر على العمليات المرتبطة به.", { title: "تأكيد حذف الفرع", danger: true, confirmLabel: "حذف الفرع" }))) return;
+    if (!(await confirm(t("حذف الفرع إجراء حساس وقد يؤثر على العمليات المرتبطة به.","Deleting a branch is sensitive and may affect related operations."), { title: t("تأكيد حذف الفرع","Confirm branch deletion"), danger: true, confirmLabel: t("حذف الفرع","Delete branch") }))) return;
 
     try {
       await api.delete(`/branches/${id}`);
-      toast.success("تم الحذف");
+      toast.success(t("تم الحذف","Deleted successfully"));
       loadBranches();
     } catch (err) {
-      toast.error(err.response?.data?.error || "تعذر الحذف");
+      toast.error(err.response?.data?.error || t("تعذر الحذف","Could not delete branch"));
     }
   }
 
@@ -236,7 +239,7 @@ export default function Branches() {
   }
 
   return (
-    <div className="p-6" dir="rtl">
+    <div className="p-6" dir={en ? "ltr" : "rtl"}>
 
       <div className="flex items-center justify-between mb-6">
 

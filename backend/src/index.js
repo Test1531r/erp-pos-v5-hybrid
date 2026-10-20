@@ -36,6 +36,7 @@ import growthRoutes from "./routes/growth.js";
 import closingRoutes from "./routes/closing.js";
 import stocktakeRoutes from "./routes/stocktakes.js";
 import settingsRoutes from "./routes/settings.js";
+import { enforceSystemFeature } from "./middleware/systemFeatures.js";
 
 function requireEnv(name, minLength = 1) {
   const value = process.env[name];
@@ -98,28 +99,30 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, skipSuccessf
 app.use("/api/auth/login", loginLimiter);
 
 app.use("/api/auth", authRoutes);
-app.use("/api/branches", branchRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/categories", categoryRoutes);
-app.use("/api/products", productRoutes);
-app.use("/api/inventory", inventoryRoutes);
-app.use("/api/pos", posRoutes);
-app.use("/api/invoices", invoiceRoutes);
-app.use("/api/customers", customerRoutes);
-app.use("/api/suppliers", supplierRoutes);
-app.use("/api/repairs", repairRoutes);
-app.use("/api/transfers", transferRoutes);
-app.use("/api/expenses", expenseRoutes);
-app.use("/api/reports", reportRoutes);
+app.use("/api/branches", enforceSystemFeature("branches"), branchRoutes);
+app.use("/api/users", enforceSystemFeature("users"), userRoutes);
+app.use("/api/categories", enforceSystemFeature("inventory"), categoryRoutes);
+app.use("/api/products/bulk/import", enforceSystemFeature("tools"));
+app.use("/api/products", enforceSystemFeature("inventory"), productRoutes);
+app.use("/api/inventory/movements", enforceSystemFeature("stockLedger"));
+app.use("/api/inventory", enforceSystemFeature("inventory"), inventoryRoutes);
+app.use("/api/pos", enforceSystemFeature("pos"), posRoutes);
+app.use("/api/invoices", enforceSystemFeature("sales"), invoiceRoutes);
+app.use("/api/customers", enforceSystemFeature("customers"), customerRoutes);
+app.use("/api/suppliers", enforceSystemFeature("purchases"), supplierRoutes);
+app.use("/api/repairs", enforceSystemFeature("repairs"), repairRoutes);
+app.use("/api/transfers", enforceSystemFeature("transfers"), transferRoutes);
+app.use("/api/expenses", enforceSystemFeature("expenses"), expenseRoutes);
+app.use("/api/reports", enforceSystemFeature("reports"), reportRoutes);
 app.use("/api/audit", auditRoutes);
-app.use("/api/finance", financeRoutes);
-app.use("/api/returns", returnRoutes);
-app.use("/api/purchases", purchaseRoutes);
-app.use("/api/receivables", receivableRoutes);
-app.use("/api/approvals", approvalRoutes);
-app.use("/api/growth", growthRoutes);
-app.use("/api/closing", closingRoutes);
-app.use("/api/stocktakes", stocktakeRoutes);
+app.use("/api/finance", enforceSystemFeature("finance"), financeRoutes);
+app.use("/api/returns", enforceSystemFeature("returns"), returnRoutes);
+app.use("/api/purchases", enforceSystemFeature("purchases"), purchaseRoutes);
+app.use("/api/receivables", enforceSystemFeature("receivables"), receivableRoutes);
+app.use("/api/approvals", enforceSystemFeature("approvals"), approvalRoutes);
+app.use("/api/growth", enforceSystemFeature("growth"), growthRoutes);
+app.use("/api/closing", enforceSystemFeature("closing"), closingRoutes);
+app.use("/api/stocktakes", enforceSystemFeature("stocktake"), stocktakeRoutes);
 app.use("/api/settings", settingsRoutes);
 
 app.get("/health", async (req, res) => {
@@ -138,11 +141,15 @@ if (fs.existsSync(frontendDist)) {
   app.get(/^\/(?!api|health|socket\.io).*/, (req, res) => res.sendFile(path.join(frontendDist, "index.html")));
 }
 
-app.use((req, res) => res.status(404).json({ error: "المسار غير موجود" }));
+app.use((req, res) => {
+  const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+  res.status(404).json({ error: english ? "Route not found." : "المسار غير موجود" });
+});
 app.use((err, req, res, next) => {
   console.error("[Unhandled]", err);
-  if (err.message === "CORS origin not allowed") return res.status(403).json({ error: "Origin غير مسموح" });
-  res.status(500).json({ error: "حدث خطأ داخلي غير متوقع" });
+  const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+  if (err.message === "CORS origin not allowed") return res.status(403).json({ error: english ? "Origin is not allowed." : "Origin غير مسموح" });
+  res.status(500).json({ error: english ? "An unexpected internal error occurred." : "حدث خطأ داخلي غير متوقع" });
 });
 
 async function bootstrapAdmin() {

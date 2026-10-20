@@ -17,6 +17,13 @@ router.post("/checkout", async (req, res) => {
   const branchId = req.branchId;
   try {
     const { items, customerId, discountAmount = 0, taxRate = 0, notes } = req.body;
+    const systemFeatureRow = await prisma.systemSetting.findUnique({ where: { id: "global" }, select: { features: true } });
+    const systemFeatures = systemFeatureRow?.features || {};
+    const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+    const requestedRedeemPoints = Math.max(0, Number.parseInt(req.body.redeemPoints || 0, 10) || 0);
+    const requestedCredit = req.body.paymentMethod === "CREDIT" || (Array.isArray(req.body.paymentSplits) && req.body.paymentSplits.some((split) => split?.method === "CREDIT"));
+    if (systemFeatures.loyalty === false && requestedRedeemPoints > 0) return res.status(503).json({ error: english ? "The loyalty program is currently disabled by the system administrator." : "نظام الولاء معطل حاليًا بواسطة مسؤول النظام", code: "FEATURE_DISABLED", feature: "loyalty" });
+    if (systemFeatures.installments === false && requestedCredit && Number(req.body.installmentsCount || 0) > 0) return res.status(503).json({ error: english ? "Installments are currently disabled by the system administrator." : "التقسيط معطل حاليًا بواسطة مسؤول النظام", code: "FEATURE_DISABLED", feature: "installments" });
     const clientOperationId = req.body.clientOperationId ? String(req.body.clientOperationId).trim().slice(0, 100) : null;
     if (clientOperationId) {
       const existing = await prisma.invoice.findUnique({ where: { clientOperationId }, include: { items: true, customer: { select: { id: true, name: true } }, branch: { select: { id: true, name: true, code: true } }, paymentSplits: { include: { account: { select: { id: true, name: true, type: true } } } } } });
@@ -217,7 +224,7 @@ router.post("/checkout", async (req, res) => {
         }
         const earnStep = Math.max(0.01, Number(branchSettings.loyaltyEarnPerAmount || 100));
         const pointsPerStep = Math.max(0, Number(branchSettings.loyaltyPointsPerStep || 1));
-        const earnedPoints = Math.floor(Number(total) / earnStep) * pointsPerStep;
+        const earnedPoints = systemFeatures.loyalty === false ? 0 : Math.floor(Number(total) / earnStep) * pointsPerStep;
         await tx.customer.update({ where: { id: customerId }, data: { totalSpent: { increment: total }, ...(earnedPoints > 0 ? { loyaltyPoints: { increment: earnedPoints } } : {}) } });
         if (earnedPoints > 0) await tx.loyaltyTransaction.create({ data: { customerId, userId: req.user.id, points: earnedPoints, type: "SALE_EARN", referenceType: "Invoice", referenceId: created.id, notes: invoiceNumber } });
       }
