@@ -302,7 +302,7 @@ export function Sales() {
 
   const handleDelete = async (invoice) => {
     const ok = await confirm(
-      `هل أنت متأكد من حذف الفاتورة ${invoice.invoiceNumber}؟\n\nسيتم إرجاع المخزون وعكس التأثير المالي المرتبط بالفاتورة. لا يمكن التراجع عن هذه العملية.`,
+      t(`هل أنت متأكد من حذف الفاتورة ${invoice.invoiceNumber}؟\n\nسيتم إرجاع المخزون وعكس التأثير المالي المرتبط بالفاتورة. لا يمكن التراجع عن هذه العملية.`,`Delete invoice ${invoice.invoiceNumber}?\n\nInventory will be returned and the related financial effects reversed. This action cannot be undone.`),
       { title: t("تأكيد حذف الفاتورة", "Confirm invoice deletion"), danger: true, confirmLabel: t("حذف الفاتورة", "Delete invoice") }
     );
     if (!ok) return;
