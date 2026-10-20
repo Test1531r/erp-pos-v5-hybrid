@@ -44,6 +44,14 @@ router.post("/", async (req, res) => {
   try {
     if (!Array.isArray(req.body.items) || !req.body.items.length) return res.status(400).json({ error: "اختر صنفاً واحداً على الأقل للمرتجع" });
     const invoiceId = req.body.invoiceId;
+    const requestedItemIds = req.body.items.map((item) => String(item?.invoiceItemId || ""));
+    if (requestedItemIds.some((id) => !id) || new Set(requestedItemIds).size !== requestedItemIds.length) {
+      return res.status(400).json({ error: "لا تكرر صنف الفاتورة في نفس المرتجع" });
+    }
+    const requestedImeis = req.body.items.flatMap((item) => Array.isArray(item?.imeiNumbers) ? item.imeiNumbers.map((imei) => String(imei).trim()) : []);
+    if (requestedImeis.some((imei) => !imei) || new Set(requestedImeis).size !== requestedImeis.length) {
+      return res.status(400).json({ error: "أرقام IMEI مفقودة أو مكررة في طلب المرتجع" });
+    }
     const created = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, branchId: req.branchId }, include: { items: true, returns: { where: { status: "COMPLETED" }, include: { items: true } }, paymentSplits: true } });
       if (!invoice) throw Object.assign(new Error("الفاتورة غير موجودة في هذا الفرع"), { status: 404 });
@@ -57,10 +65,12 @@ router.post("/", async (req, res) => {
       for (const raw of req.body.items) {
         const source = invoiceMap.get(raw.invoiceItemId);
         if (!source) throw Object.assign(new Error("أحد أصناف المرتجع لا ينتمي إلى الفاتورة"), { status: 422 });
-        const qty = positiveInt(raw.quantity);
+        let qty;
+        try { qty = positiveInt(raw.quantity); }
+        catch (validationError) { throw Object.assign(new Error(validationError.message || "كمية المرتجع غير صالحة"), { status: 400 }); }
         const available = source.quantity - (prior.get(source.id) || 0);
         if (qty > available) throw Object.assign(new Error(`الكمية المرتجعة من ${source.productName} أكبر من المتاح (${available})`), { status: 422 });
-        const imeis = Array.isArray(raw.imeiNumbers) ? raw.imeiNumbers.map(String) : [];
+        const imeis = Array.isArray(raw.imeiNumbers) ? raw.imeiNumbers.map((value) => String(value).trim()) : [];
         if (source.imeiNumbers?.length) {
           if (imeis.length !== qty) throw Object.assign(new Error(`حدد ${qty} IMEI للمرتجع من ${source.productName}`), { status: 422 });
           if (imeis.some((i) => !source.imeiNumbers.includes(i))) throw Object.assign(new Error("IMEI غير موجود في الفاتورة الأصلية"), { status: 422 });
@@ -89,7 +99,15 @@ router.post("/", async (req, res) => {
         const inv = await tx.inventory.upsert({ where: { productId_branchId: { productId: item.source.productId, branchId: req.branchId } }, create: { productId: item.source.productId, branchId: req.branchId, quantity: item.quantity }, update: { quantity: { increment: item.quantity } } });
         const before = inv.quantity - item.quantity;
         await tx.stockMovement.create({ data: { branchId: req.branchId, productId: item.source.productId, userId: req.user.id, type: "SALE_RETURN", quantity: item.quantity, quantityBefore: before, quantityAfter: inv.quantity, referenceType: "SaleReturn", referenceId: ret.id, notes: req.body.reason || null } });
-        if (item.imeis.length) await tx.productIMEI.updateMany({ where: { imei: { in: item.imeis }, saleInvoiceId: invoice.id }, data: { status: "IN_STOCK", saleInvoiceId: null, soldAt: null } });
+        if (item.imeis.length) {
+          const restored = await tx.productIMEI.updateMany({
+            where: { imei: { in: item.imeis }, productId: item.source.productId, branchId: req.branchId, status: "SOLD", saleInvoiceId: invoice.id },
+            data: { status: "IN_STOCK", saleInvoiceId: null, soldAt: null },
+          });
+          if (restored.count !== item.imeis.length) {
+            throw Object.assign(new Error("تغيرت حالة أحد أرقام IMEI أثناء تنفيذ المرتجع؛ لم يتم اعتماد العملية"), { status: 409 });
+          }
+        }
       }
       const refundMovement = await postMovement(tx, { branchId: req.branchId, accountId: refundAccountId, userId: req.user.id, type: "SALE_REFUND", amount: total, direction: "OUT", referenceType: "SaleReturn", referenceId: ret.id, description: `مرتجع الفاتورة ${invoice.invoiceNumber}` });
       if (refundMovement.account.type === "CASHBOX") await tx.branch.update({ where: { id: req.branchId }, data: { cashboxBalance: { decrement: total } } });
