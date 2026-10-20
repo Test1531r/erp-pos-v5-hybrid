@@ -298,6 +298,12 @@ export function Inventory() {
             {visibleProducts.map(p => {
               const qty = quantityFor(p);
               const lowStock = qty <= Number(p.lowStockQty ?? 5);
+              const variantPrices = (p.variants || []).map(variant => Number(variant.salePrice || 0));
+              const priceLabel = variantPrices.length
+                ? (Math.min(...variantPrices) === Math.max(...variantPrices)
+                  ? Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })
+                  : Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }) + " – " + Math.max(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }))
+                : Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 });
               return <article key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
                 <div className="relative flex h-44 items-center justify-center bg-slate-50 p-3">
                   {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <div className="flex flex-col items-center gap-2 text-slate-300"><Package className="h-12 w-12" /><span className="text-xs">{t("لا توجد صورة", "No image")}</span></div>}
@@ -306,7 +312,7 @@ export function Inventory() {
                 </div>
                 <div className="space-y-3 p-4">
                   <div className="min-h-[56px]"><h3 className="line-clamp-2 font-bold text-slate-800">{p.name}</h3><p className="mt-1 text-xs text-slate-400">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku}</p></div>
-                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
+                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{priceLabel} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="max-w-[55%] truncate text-xs text-slate-500">{p.category?.name || t("بدون تصنيف", "Uncategorized")}</span><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button>{!p.variants?.length && <button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>}{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600 hover:bg-blue-50" title="IMEI">IMEI</button>}</div></div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs font-semibold text-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button>
