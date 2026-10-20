@@ -19,10 +19,14 @@ export function enforceSystemFeature(feature) {
       if (auth) return res.status(auth.code).json(auth.body);
       const row = await prisma.systemSetting.findUnique({ where: { id: "global" }, select: { features: true } });
       const features = row?.features || {};
-      if (features[feature] === false) return res.status(503).json({ error: "هذه الميزة معطلة حاليًا بواسطة مسؤول النظام", code: "FEATURE_DISABLED", feature });
+      if (features[feature] === false) {
+        const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+        return res.status(503).json({ error: english ? "This feature is currently disabled by the system administrator." : "هذه الميزة معطلة حاليًا بواسطة مسؤول النظام", code: "FEATURE_DISABLED", feature });
+      }
       next();
     } catch {
-      res.status(500).json({ error: "تعذر التحقق من إعدادات النظام" });
+      const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+      res.status(500).json({ error: english ? "Could not verify system settings." : "تعذر التحقق من إعدادات النظام" });
     }
   };
 }
