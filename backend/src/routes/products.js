@@ -9,24 +9,41 @@ router.use(authenticate);
 
 router.get("/", async (req, res) => {
   try {
-    const { search, categoryId } = req.query;
+    const { search, categoryId, view } = req.query;
     const effectiveBranchId = req.branchId;
     const { page, limit, skip } = pageParams(req.query, 60, 100);
     const where = { isActive: true };
-    if (search) where.OR = ["name", "sku", "barcode", "brand"].map((field) => ({ [field]: { contains: String(search).trim(), mode: "insensitive" } }));
-   if (
-  categoryId &&
-  categoryId !== "null" &&
-  categoryId !== "undefined"
-) {
-  where.categoryId = categoryId;
-}
+    const andFilters = [];
+    if (search) andFilters.push({ OR: ["name", "sku", "barcode", "brand", "variantLabel"].map((field) => ({ [field]: { contains: String(search).trim(), mode: "insensitive" } })) });
+    if (categoryId && categoryId !== "null" && categoryId !== "undefined") where.categoryId = categoryId;
+    if (view === "management") {
+      where.parentProductId = null;
+    } else {
+      // A parent is never a sellable SKU once it has variants, even if all variants are deactivated.
+      andFilters.push({ OR: [{ parentProductId: { not: null } }, { variants: { none: {} } }] });
+    }
+    if (andFilters.length) where.AND = andFilters;
+    const inventoryInclude = effectiveBranchId ? { where: { branchId: effectiveBranchId } } : true;
+    const include = {
+      category: { select: { id: true, name: true, icon: true } },
+      inventory: inventoryInclude,
+    };
+    if (view === "management") {
+      include.variants = { where: { isActive: true }, include: { inventory: inventoryInclude }, orderBy: { name: "asc" } };
+    } else {
+      include.parentProduct = { select: { id: true, name: true } };
+    }
     const [products, total] = await prisma.$transaction([
-      prisma.product.findMany({ where, include: { category: { select: { id: true, name: true, icon: true } }, inventory: effectiveBranchId ? { where: { branchId: effectiveBranchId } } : true }, skip, take: limit, orderBy: { name: "asc" } }),
+      prisma.product.findMany({ where, include, skip, take: limit, orderBy: { name: "asc" } }),
       prisma.product.count({ where }),
     ]);
-    res.json({ products, total, page, pages: Math.ceil(total / limit) });
-  } catch { res.status(500).json({ error: "تعذر تحميل المنتجات" }); }
+    const shaped = view === "management" ? products : products.map((p) => ({
+      ...p,
+      displayName: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
+      name: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
+    }));
+    res.json({ products: shaped, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) { console.error("PRODUCT_LIST_ERROR", err); res.status(500).json({ error: "تعذر تحميل المنتجات" }); }
 });
 
 
@@ -83,7 +100,14 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
     const name = String(req.body.name || "").trim();
     const sku = String(req.body.sku || "").trim().toUpperCase();
     if (!name || !sku) return res.status(400).json({ error: "اسم المنتج وSKU مطلوبان" });
-    const product = await prisma.product.create({ data: { name, sku, barcode: req.body.barcode ? String(req.body.barcode).trim() : null, description: req.body.description || null, categoryId: req.body.categoryId || null, brand: req.body.brand || null, costPrice: money(req.body.costPrice || 0, "سعر التكلفة"), salePrice: money(req.body.salePrice || 0, "سعر البيع"), hasIMEI: Boolean(req.body.hasIMEI), imageUrl: req.body.imageUrl || null, lowStockQty: Math.max(0, Number.parseInt(req.body.lowStockQty || 5, 10) || 0) } });
+    const parentProductId = req.body.parentProductId ? String(req.body.parentProductId) : null;
+    const variantLabel = req.body.variantLabel ? String(req.body.variantLabel).trim() : null;
+    if (parentProductId) {
+      const parent = await prisma.product.findUnique({ where: { id: parentProductId }, select: { id: true, parentProductId: true, isActive: true } });
+      if (!parent || parent.parentProductId || !parent.isActive) return res.status(400).json({ error: "المنتج الأساسي غير صالح لإضافة متغير" });
+      if (!variantLabel) return res.status(400).json({ error: "اسم/وصف المتغير مطلوب مثل اللون والسعة" });
+    }
+    const product = await prisma.product.create({ data: { name, sku, barcode: req.body.barcode ? String(req.body.barcode).trim() : null, description: req.body.description || null, categoryId: req.body.categoryId || null, brand: req.body.brand || null, costPrice: money(req.body.costPrice || 0, "سعر التكلفة"), salePrice: money(req.body.salePrice || 0, "سعر البيع"), hasIMEI: Boolean(req.body.hasIMEI), imageUrl: req.body.imageUrl || null, lowStockQty: Math.max(0, Number.parseInt(req.body.lowStockQty || 5, 10) || 0), parentProductId, variantLabel } });
     await audit(req.user, "CREATE", "Product", product.id, { name: product.name, sku: product.sku });
     res.status(201).json(product);
   } catch (err) { if (err.code === "P2002") return res.status(409).json({ error: "SKU أو الباركود موجود بالفعل" }); res.status(500).json({ error: "تعذر إنشاء المنتج" }); }
@@ -92,7 +116,7 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
 router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"), async (req, res) => {
   try {
     const data = { ...req.body };
-    delete data.id; delete data.createdAt; delete data.updatedAt; delete data.inventory; delete data.imeiRecords; delete data.category;
+    delete data.id; delete data.createdAt; delete data.updatedAt; delete data.inventory; delete data.imeiRecords; delete data.category; delete data.variants; delete data.parentProduct;
     if (data.costPrice !== undefined) data.costPrice = money(data.costPrice, "سعر التكلفة");
     if (data.salePrice !== undefined) data.salePrice = money(data.salePrice, "سعر البيع");
     if (data.lowStockQty !== undefined) data.lowStockQty = Math.max(0, Number.parseInt(data.lowStockQty, 10) || 0);
@@ -105,10 +129,15 @@ router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER
 
 router.delete("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) => {
   try {
-    const product = await prisma.product.update({ where: { id: req.params.id }, data: { isActive: false } });
-    await audit(req.user, "DEACTIVATE", "Product", product.id, { name: product.name });
-    res.json({ message: "تم تعطيل المنتج" });
-  } catch { res.status(500).json({ error: "تعذر تعطيل المنتج" }); }
+    const product = await prisma.product.findUnique({ where: { id: req.params.id }, include: { variants: { select: { id: true } } } });
+    if (!product) return res.status(404).json({ error: "المنتج غير موجود" });
+    const ids = [product.id, ...product.variants.map((variant) => variant.id)];
+    await prisma.$transaction(async (tx) => {
+      await tx.product.updateMany({ where: { id: { in: ids } }, data: { isActive: false } });
+    });
+    await audit(req.user, "DEACTIVATE", "Product", product.id, { name: product.name, deactivatedVariantCount: product.variants.length });
+    res.json({ message: "تم تعطيل المنتج ومتغيراته", deactivatedVariantCount: product.variants.length });
+  } catch (err) { console.error("PRODUCT_DEACTIVATE_ERROR", err); res.status(500).json({ error: "تعذر تعطيل المنتج" }); }
 });
 
 export default router;
