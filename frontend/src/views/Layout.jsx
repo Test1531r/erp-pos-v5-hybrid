@@ -159,12 +159,13 @@ export default function Layout() {
             <h1 className="font-bold text-slate-800">{t(NAV.find((n) => n.path === location.pathname)?.label || "النظام", ({ "لوحة التحكم":"Dashboard", "مركز المزامنة":"Sync Center", "نقطة البيع":"Point of Sale", "المخزون":"Inventory", "حركة المخزون":"Stock Ledger", "المشتريات والموردين":"Purchases & Suppliers", "الآجل والأقساط":"Receivables & Installments", "الموافقات":"Approvals", "العروض و Trade-In":"Promotions & Trade-In", "الإقفال اليومي":"Daily Closing", "الباركود والاستيراد":"Barcode & Import", "الجرد الدوري":"Stocktake", "تقارير الإدارة":"Management Reports", "الإعدادات":"Settings", "المبيعات":"Sales", "العملاء":"Customers", "الصيانة":"Repairs", "نقل المخزون":"Stock Transfers", "المصروفات":"Expenses", "المالية والمحافظ":"Finance & Wallets", "المرتجعات":"Returns", "المستخدمين":"Users", "الفروع":"Branches" })[NAV.find((n) => n.path === location.pathname)?.label] || "System")}</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setLanguage(en ? "ar" : "en")} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" aria-label={t("تغيير اللغة", "Change language")}><Globe className="h-4 w-4"/>{en ? "العربية" : "English"}</button>
             <div className="relative">
               <button onClick={() => setShowNotifications(!showNotifications)} className="relative p-2 rounded-xl hover:bg-slate-100 text-slate-600">
                 <Bell className="w-5 h-5" />
                 {notifications.filter(n => !n.isRead).length > 0 && <span className="absolute -top-0.5 -left-0.5 min-w-4 h-4 px-1 bg-red-500 text-white rounded-full text-[9px] flex items-center justify-center">{notifications.filter(n => !n.isRead).length}</span>}
               </button>
-              {showNotifications && <div className="absolute left-0 top-11 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden">
+              {showNotifications && <div className={`absolute ${en ? "left-0" : "right-0"} top-11 w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden`}>
                 <div className="px-4 py-3 border-b font-bold text-sm">{t("الإشعارات","Notifications")}</div>
                 <div className="max-h-80 overflow-y-auto">
                   {notifications.slice(0,20).map(n => <button key={n.id} onClick={async()=>{ if(!n.isRead){await api.post(`/growth/notifications/${n.id}/read`).catch(()=>{}); setNotifications(x=>x.map(v=>v.id===n.id?{...v,isRead:true}:v));} if(n.link){navigate(n.link);setShowNotifications(false);} }} className={`w-full ${en ? "text-left" : "text-right"} px-4 py-3 border-b hover:bg-slate-50 ${n.isRead ? "bg-white" : "bg-indigo-50/60"}`}>
