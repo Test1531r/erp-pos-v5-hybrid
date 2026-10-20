@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, useStore } from "../store/index.js";
-import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign, GitCompareArrows } from "lucide-react";
+import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign, GitCompareArrows, FileDown } from "lucide-react";
 import toast from "react-hot-toast";
 
 const money = (value, locale) => Number(value || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -50,6 +50,33 @@ export default function Reports() {
 
   useEffect(() => { if (user?.role === "SUPER_ADMIN") loadComparison(); }, [loadComparison, user?.role]);
 
+  const exportComparison = () => {
+    if (!comparison?.branches?.length) return;
+    const cell = value => {
+      let text = String(value ?? "");
+      if (typeof value === "string" && /^[=+\-@\t\r]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    const rows = [
+      [t("مقارنة الفروع", "Branch comparison")],
+      [t("من تاريخ", "From"), from],
+      [t("إلى تاريخ", "To"), to],
+      [],
+      [t("الفرع", "Branch"), t("كود الفرع", "Branch code"), t("المبيعات", "Sales"), t("المرتجعات", "Returns"), t("صافي المبيعات", "Net sales"), t("تكلفة البضاعة", "COGS"), t("المصروفات", "Expenses"), t("صافي الربح التقديري", "Estimated net profit"), t("عدد الفواتير", "Invoice count"), t("المشتريات", "Purchases"), t("المدفوع للموردين", "Paid to suppliers")],
+      ...comparison.branches.map(row => [row.branchName, row.branchCode, row.revenue, row.returns, row.netSales, row.cogs, row.expenses, row.netProfit, row.invoiceCount, row.purchases, row.purchasePaid])
+    ];
+    const csv = "\\uFEFF" + rows.map(row => row.map(cell).join(",")).join("\\r\\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `branch-comparison-${from}-to-${to}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const fmt = value => money(value, locale);
   const card = (title, value, sub, Icon, tone) => (
     <div key={title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -76,7 +103,10 @@ export default function Reports() {
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><GitCompareArrows className="h-5 w-5 text-indigo-600"/>{t("مقارنة الفروع", "Branch comparison")}</h2>
             <p className="mt-1 text-xs text-slate-500">{t("مقارنة المؤشرات للفترة المختارة. صافي الربح تقديري وفق تكلفة البضاعة المسجلة والمصروفات المسجلة.", "Compare metrics for the selected period. Net profit is an estimate based on recorded COGS and expenses.")}</p>
           </div>
-          <button disabled={comparisonLoading} onClick={loadComparison} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"><RefreshCw className={`mr-1 inline h-4 w-4 ${comparisonLoading ? "animate-spin" : ""}`}/>{t("تحديث المقارنة", "Refresh comparison")}</button>
+          <div className="flex flex-wrap gap-2">
+            <button disabled={!comparison?.branches?.length || comparisonLoading} onClick={exportComparison} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"><FileDown className="mr-1 inline h-4 w-4"/>{t("تصدير CSV / Excel", "Export CSV / Excel")}</button>
+            <button disabled={comparisonLoading} onClick={loadComparison} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"><RefreshCw className={`mr-1 inline h-4 w-4 ${comparisonLoading ? "animate-spin" : ""}`}/>{t("تحديث المقارنة", "Refresh comparison")}</button>
+          </div>
         </div>
         {comparisonLoading && !comparison ? <p className="p-6 text-sm text-slate-500">{t("جارٍ تحميل مقارنة الفروع...", "Loading branch comparison...")}</p> :
           comparison?.branches?.length ? <div className="overflow-x-auto"><table className="w-full text-sm">
