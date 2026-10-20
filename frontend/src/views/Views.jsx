@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff } from "lucide-react";
+import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
@@ -79,6 +79,7 @@ async function prepareProductImage(file) {
 // INVENTORY
 // ══════════════════════════════════════════════════════════════
 export function Inventory() {
+  const { confirm } = useDialog();
   const language = useStore((state) => state.language);
   const en = language === "en";
   const t = (ar, english) => en ? english : ar;
@@ -95,11 +96,12 @@ export function Inventory() {
   const [viewMode, setViewMode] = useState("grid");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [imageUploading, setImageUploading] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState({});
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get(`/products?limit=100&branchId=${activeBranch?.id || ""}&search=${search}`);
+      const { data } = await api.get(`/products?view=management&limit=100&branchId=${activeBranch?.id || ""}&search=${encodeURIComponent(search)}`);
       setProducts(data.products);
     } catch { toast.error("فشل تحميل المنتجات"); }
     setLoading(false);
@@ -131,8 +133,18 @@ export function Inventory() {
     .filter((product) => product.currentQuantity <= product.minimumQuantity && product.suggestedQuantity > 0)
     .sort((a, b) => a.currentQuantity - b.currentQuantity || a.name.localeCompare(b.name));
 
-  const openAdd = () => { setForm({ salePrice: 0, costPrice: 0, lowStockQty: 5, hasIMEI: false, isActive: true }); setModal("add"); };
+  const openAdd = () => { setSelected(null); setForm({ salePrice: 0, costPrice: 0, lowStockQty: 5, hasIMEI: false, isActive: true, parentProductId: null }); setModal("add"); };
   const openEdit = (p) => { setSelected(p); setForm({ ...p }); setModal("edit"); };
+  const openAddVariant = (parent) => { setSelected(parent); setForm({ name: parent.name, brand: parent.brand || "", categoryId: parent.categoryId || "", salePrice: Number(parent.salePrice || 0), costPrice: Number(parent.costPrice || 0), lowStockQty: 5, hasIMEI: parent.hasIMEI || false, isActive: true, parentProductId: parent.id, variantLabel: "", imageUrl: parent.imageUrl || "" }); setModal("variantAdd"); };
+  const toggleVariants = (id) => setExpandedProducts(current => ({ ...current, [id]: !current[id] }));
+  const handleDeleteProduct = async (product) => {
+    const variantCount = product.variants?.length || 0;
+    const message = t("هل تريد تعطيل المنتج؟ ستظل الفواتير والحركات التاريخية محفوظة.", "Deactivate this product? Historical invoices and stock movements will be preserved.") + (variantCount ? " " + variantCount + t(" متغير سيتم تعطيله أيضًا.", " variant(s) will also be deactivated.") : "");
+    const ok = await confirm(message, { title: t("تأكيد حذف المنتج", "Confirm product deletion"), danger: true, confirmLabel: t("حذف المنتج", "Delete product") });
+    if (!ok) return;
+    try { await api.delete(`/products/${product.id}`); toast.success(t("تم حذف/تعطيل المنتج", "Product deactivated")); await load(); }
+    catch (err) { toast.error(err.response?.data?.error || t("تعذر حذف المنتج", "Could not delete product")); }
+  };
   const openAdjust = (p) => { setSelected(p); setAdjustForm({ type: "ADD", quantity: 1, reason: "" }); setModal("adjust"); };
   const openIMEI = (p) => { setSelected(p); setImeiList([{ imei: "", color: "", storage: "" }]); setModal("imei"); };
 
@@ -169,12 +181,18 @@ export function Inventory() {
   const handleSave = async () => {
     if (imageUploading) return toast.error(t("انتظر حتى تنتهي معالجة الصورة", "Please wait for image processing to finish"));
     try {
-      if (modal === "add") await api.post("/products", form);
-      else await api.put(`/products/${selected.id}`, form);
-      toast.success("تم الحفظ");
+      if (modal === "add" || modal === "variantAdd") {
+        const payload = { ...form };
+        if (modal === "variantAdd") {
+          if (!String(payload.variantLabel || "").trim()) return toast.error(t("أدخل اللون أو مواصفات المتغير", "Enter a color or variant description"));
+          payload.name = selected.name;
+        }
+        await api.post("/products", payload);
+      } else await api.put(`/products/${selected.id}`, form);
+      toast.success(t("تم الحفظ", "Saved successfully"));
       setModal(null);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || "فشل الحفظ"); }
+      await load();
+    } catch (err) { toast.error(err.response?.data?.error || t("فشل الحفظ", "Save failed")); }
   };
 
   const handleAdjust = async () => {
@@ -377,14 +395,15 @@ export function Inventory() {
       </div>
 
       {/* Add/Edit Modal */}
-      {(modal === "add" || modal === "edit") && (
-        <Modal title={modal === "add" ? "إضافة منتج جديد" : "تعديل المنتج"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
+      {(modal === "add" || modal === "edit" || modal === "variantAdd") && (
+        <Modal title={modal === "add" ? t("إضافة منتج أساسي", "Add parent product") : modal === "variantAdd" ? t("إضافة متغير للمنتج", "Add product variant") : t("تعديل المنتج", "Edit product")} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="اسم المنتج *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم المنتج" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="SKU *"><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="SKU-001" /></Field>
               <Field label="باركود"><Input value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="1234567890" /></Field>
             </div>
+            {modal === "variantAdd" && <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3"><Field label={t("اللون / السعة / المواصفات *", "Color / storage / specification *")}><Input value={form.variantLabel || ""} onChange={e => setForm({ ...form, variantLabel: e.target.value })} placeholder={t("مثال: أسود · 256GB", "e.g. Black · 256GB")} /></Field><p className="mt-2 text-xs text-indigo-700">{t("سيكون لكل متغير SKU وسعر وتكلفة وصورة ومخزون مستقل.", "Each variant has its own SKU, price, cost, image and inventory.")}</p></div>}
             <div className="grid grid-cols-2 gap-3">
               <Field label="سعر البيع"><Input type="number" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></Field>
               <Field label="سعر التكلفة"><Input type="number" value={form.costPrice || ""} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} /></Field>
