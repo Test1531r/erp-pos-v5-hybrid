@@ -13,18 +13,16 @@ router.get("/", async (req, res) => {
     const effectiveBranchId = req.branchId;
     const { page, limit, skip } = pageParams(req.query, 60, 100);
     const where = { isActive: true };
-    if (search) where.OR = ["name", "sku", "barcode", "brand", "variantLabel"].map((field) => ({ [field]: { contains: String(search).trim(), mode: "insensitive" } }));
+    const andFilters = [];
+    if (search) andFilters.push({ OR: ["name", "sku", "barcode", "brand", "variantLabel"].map((field) => ({ [field]: { contains: String(search).trim(), mode: "insensitive" } })) });
     if (categoryId && categoryId !== "null" && categoryId !== "undefined") where.categoryId = categoryId;
     if (view === "management") {
       where.parentProductId = null;
     } else {
       // Parents with active variants are group headers, not sellable SKU rows.
-      where.OR = [
-        ...(where.OR || []),
-        { parentProductId: { not: null } },
-        { variants: { none: { isActive: true } } },
-      ];
+      andFilters.push({ OR: [{ parentProductId: { not: null } }, { variants: { none: { isActive: true } } }] });
     }
+    if (andFilters.length) where.AND = andFilters;
     const inventoryInclude = effectiveBranchId ? { where: { branchId: effectiveBranchId } } : true;
     const include = {
       category: { select: { id: true, name: true, icon: true } },
@@ -38,6 +36,7 @@ router.get("/", async (req, res) => {
     const shaped = view === "management" ? products : products.map((p) => ({
       ...p,
       displayName: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
+      name: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
     }));
     res.json({ products: shaped, total, page, pages: Math.ceil(total / limit) });
   } catch (err) { console.error("PRODUCT_LIST_ERROR", err); res.status(500).json({ error: "تعذر تحميل المنتجات" }); }
