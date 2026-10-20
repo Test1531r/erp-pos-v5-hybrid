@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown } from "lucide-react";
+import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
@@ -44,6 +44,37 @@ function Badge({ children, color = "slate" }) {
   return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${colors[color]}`}>{children}</span>;
 }
 
+async function prepareProductImage(file) {
+  if (!file || !file.type?.startsWith("image/")) throw new Error("اختر ملف صورة صالحًا");
+  if (file.size > 8 * 1024 * 1024) throw new Error("حجم الصورة الأصلية يجب ألا يتجاوز 8 ميجابايت");
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("تعذر قراءة الصورة")); });
+    const scale = Math.min(1, 360 / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+    for (const quality of [0.72, 0.62, 0.52, 0.42, 0.34]) {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", quality));
+      if (!blob) continue;
+      if (blob.size <= 28 * 1024) {
+        return await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("تعذر تجهيز الصورة"));
+          reader.readAsDataURL(blob);
+        });
+      }
+    }
+    throw new Error("الصورة لا تزال كبيرة بعد الضغط. اختر صورة أبسط أو استخدم رابط صورة مباشر.");
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 // INVENTORY
 // ══════════════════════════════════════════════════════════════
@@ -61,6 +92,9 @@ export function Inventory() {
   const [adjustForm, setAdjustForm] = useState({ type: "ADD", quantity: 1, reason: "" });
   const [imeiList, setImeiList] = useState([{ imei: "", color: "", storage: "" }]);
   const [stockFilter, setStockFilter] = useState("all");
+  const [viewMode, setViewMode] = useState("grid");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [imageUploading, setImageUploading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -82,7 +116,9 @@ export function Inventory() {
   }, { lowStock: 0, outOfStock: 0 });
   const visibleProducts = products.filter((product) => {
     const quantity = product.inventory?.[0]?.quantity ?? 0;
-    return stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
+    const matchesStock = stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
+    const matchesCategory = categoryFilter === "all" || product.categoryId === categoryFilter;
+    return matchesStock && matchesCategory;
   });
   const reorderSuggestions = products
     .filter((product) => product.isActive !== false && !product.hasIMEI)
@@ -100,7 +136,38 @@ export function Inventory() {
   const openAdjust = (p) => { setSelected(p); setAdjustForm({ type: "ADD", quantity: 1, reason: "" }); setModal("adjust"); };
   const openIMEI = (p) => { setSelected(p); setImeiList([{ imei: "", color: "", storage: "" }]); setModal("imei"); };
 
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setImageUploading(true);
+    try {
+      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+      let imageUrl;
+      if (cloudName && uploadPreset) {
+        const compressed = await prepareProductImage(file);
+        const blob = await (await fetch(compressed)).blob();
+        const body = new FormData();
+        body.append("file", blob, "product.webp");
+        body.append("upload_preset", uploadPreset);
+        body.append("folder", "erp-pos/products");
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body });
+        const result = await response.json();
+        if (!response.ok || !result.secure_url) throw new Error(result.error?.message || "فشل رفع الصورة إلى خدمة الصور");
+        imageUrl = result.secure_url;
+      } else {
+        imageUrl = await prepareProductImage(file);
+      }
+      setForm(current => ({ ...current, imageUrl }));
+      toast.success(cloudName && uploadPreset ? "تم رفع الصورة" : "تم تجهيز الصورة المضغوطة وحفظها مع بيانات المنتج");
+    } catch (err) {
+      toast.error(err.message || "تعذر رفع الصورة");
+    } finally {
+      setImageUploading(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (imageUploading) return toast.error(t("انتظر حتى تنتهي معالجة الصورة", "Please wait for image processing to finish"));
     try {
       if (modal === "add") await api.post("/products", form);
       else await api.put(`/products/${selected.id}`, form);
@@ -188,14 +255,71 @@ export function Inventory() {
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
-        <div className="p-4 border-b flex gap-3">
-          <div className="relative flex-1">
+        <div className="p-4 border-b flex flex-col xl:flex-row gap-3">
+          <div className="relative flex-1 min-w-[220px]">
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..." className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("ابحث بالاسم أو SKU أو الباركود أو العلامة التجارية...", "Search name, SKU, barcode or brand...")} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
           </div>
-          <button onClick={load} className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50"><RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? "animate-spin" : ""}`} /></button>
+          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white min-w-[170px]">
+            <option value="all">{t("كل التصنيفات", "All categories")}</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 p-1" role="group" aria-label={t("طريقة عرض المنتجات", "Product view mode")}>
+            <button onClick={() => setViewMode("grid")} title={t("بطاقات كبيرة بالصورة", "Large image cards")} aria-pressed={viewMode === "grid"} className={`rounded-lg p-2 ${viewMode === "grid" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><LayoutGrid className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("compact")} title={t("قائمة بصورة صغيرة على الجانب", "Compact rows with side thumbnail")} aria-pressed={viewMode === "compact"} className={`rounded-lg p-2 ${viewMode === "compact" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><Rows3 className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("list")} title={t("جدول كامل", "Full table")} aria-pressed={viewMode === "list"} className={`rounded-lg p-2 ${viewMode === "list" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><ListIcon className="h-4 w-4" /></button>
+            <button onClick={() => setViewMode("plain")} title={t("قائمة بدون صور", "List without images")} aria-pressed={viewMode === "plain"} className={`rounded-lg p-2 ${viewMode === "plain" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><EyeOff className="h-4 w-4" /></button>
+          </div>
+          <button onClick={load} title={t("تحديث", "Refresh")} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50"><RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? "animate-spin" : ""}`} /></button>
         </div>
 
+        {viewMode === "grid" ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-4">
+            {visibleProducts.map(p => {
+              const qty = p.inventory?.[0]?.quantity ?? 0;
+              const lowStock = qty <= Number(p.lowStockQty ?? 5);
+              return <article key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
+                <div className="relative flex h-44 items-center justify-center bg-slate-50 p-3">
+                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <div className="flex flex-col items-center gap-2 text-slate-300"><Package className="h-12 w-12" /><span className="text-xs">{t("لا توجد صورة", "No image")}</span></div>}
+                  <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold ${p.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</span>
+                  {qty === 0 && <span className="absolute left-3 top-3 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">{t("نفد المخزون", "Out of stock")}</span>}
+                </div>
+                <div className="space-y-3 p-4">
+                  <div className="min-h-[56px]"><h3 className="line-clamp-2 font-bold text-slate-800">{p.name}</h3><p className="mt-1 text-xs text-slate-400">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku}</p></div>
+                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="max-w-[55%] truncate text-xs text-slate-500">{p.category?.name || t("بدون تصنيف", "Uncategorized")}</span><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600 hover:bg-blue-50" title="IMEI">IMEI</button>}</div></div>
+                </div>
+              </article>;
+            })}
+            {visibleProducts.length === 0 && !loading && <div className="col-span-full py-16 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
+          </div>
+        ) : viewMode === "compact" ? (
+          <div className="divide-y divide-slate-100 p-2 sm:p-3">
+            {visibleProducts.map(p => {
+              const qty = p.inventory?.[0]?.quantity ?? 0;
+              const lowStock = qty <= Number(p.lowStockQty ?? 5);
+              return <article key={p.id} className="flex items-center gap-3 rounded-xl p-2 sm:gap-4 sm:p-3 hover:bg-slate-50">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white sm:h-20 sm:w-20">
+                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <Package className="h-7 w-7 text-slate-300" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-800">{p.name}</h3><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge>{qty === 0 && <Badge color="red">{t("نافد", "Out")}</Badge>}</div>
+                  <p className="mt-1 truncate text-xs text-slate-500">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku} · {p.category?.name || t("بدون تصنيف", "Uncategorized")}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="font-bold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</span><span className={`text-sm font-semibold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{t("المخزون:", "Stock:")} {qty}</span>{p.hasIMEI && <span className="text-xs text-blue-600">IMEI</span>}</div>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1 sm:flex-row"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-white" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600" title="IMEI">IMEI</button>}</div>
+              </article>;
+            })}
+            {visibleProducts.length === 0 && !loading && <div className="py-14 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
+          </div>
+        ) : viewMode === "plain" ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b bg-slate-50 text-right text-xs text-slate-500"><th className="px-4 py-3">{t("اسم المنتج", "Product name")}</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3">{t("التصنيف", "Category")}</th><th className="px-4 py-3">{t("سعر البيع", "Sale price")}</th><th className="px-4 py-3">{t("المخزون", "Stock")}</th><th className="px-4 py-3">{t("الحالة", "Status")}</th><th className="px-4 py-3">{t("إجراءات", "Actions")}</th></tr></thead>
+              <tbody>{visibleProducts.map(p => { const qty = p.inventory?.[0]?.quantity ?? 0; return <tr key={p.id} className="border-b hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td><td className="px-4 py-3 font-mono text-slate-500">{p.sku}</td><td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td><td className="px-4 py-3 font-semibold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</td><td className={`px-4 py-3 font-bold ${qty === 0 ? "text-rose-600" : qty <= Number(p.lowStockQty ?? 5) ? "text-amber-600" : "text-emerald-600"}`}>{qty}</td><td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge></td><td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("تعديل الكمية", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button></div></td></tr>; })}{visibleProducts.length === 0 && !loading && <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>}</tbody>
+            </table>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -217,9 +341,11 @@ export function Inventory() {
                 return (
                   <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <div>
-                        <p className="font-semibold text-slate-800">{p.name}</p>
-                        {p.brand && <p className="text-xs text-slate-400">{p.brand}</p>}
+                      <div className="flex items-center gap-3 min-w-[220px]">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-center">
+                          {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <Package className="h-6 w-6 text-slate-300" />}
+                        </div>
+                        <div><p className="font-semibold text-slate-800">{p.name}</p>{p.brand && <p className="text-xs text-slate-400">{p.brand}</p>}</div>
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-slate-600">{p.sku}</td>
@@ -247,6 +373,7 @@ export function Inventory() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Add/Edit Modal */}
@@ -271,10 +398,18 @@ export function Inventory() {
               </Field>
               <Field label="العلامة التجارية"><Input value={form.brand || ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} /></Field>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="حد المخزون المنخفض"><Input type="number" value={form.lowStockQty || 5} onChange={(e) => setForm({ ...form, lowStockQty: parseInt(e.target.value) })} /></Field>
-              <Field label="رابط الصورة"><Input value={form.imageUrl || ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://..." /></Field>
+            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3"><div><h4 className="font-semibold text-slate-800">{t("صورة المنتج", "Product image")}</h4><p className="mt-1 text-xs text-slate-500">{t("ارفع صورة من جهازك أو الصق رابط صورة مباشر", "Upload an image or paste a direct image URL")}</p></div>{form.imageUrl && <button type="button" onClick={() => setForm({ ...form, imageUrl: "" })} className="text-xs font-medium text-rose-600 hover:underline">{t("إزالة الصورة", "Remove image")}</button>}</div>
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">{form.imageUrl ? <img src={form.imageUrl} alt="معاينة صورة المنتج" className="h-full w-full object-contain" /> : <div className="text-center text-slate-300"><ImagePlus className="mx-auto h-8 w-8" /><span className="mt-1 block text-xs">{t("معاينة الصورة", "Image preview")}</span></div>}</div>
+                <div className="min-w-0 flex-1 space-y-3">
+                  <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 ${imageUploading ? "pointer-events-none opacity-50" : ""}`}><UploadCloud className="h-4 w-4" />{imageUploading ? t("جاري تجهيز الصورة...", "Preparing image...") : t("اختيار صورة من الجهاز", "Choose image") }<input type="file" accept="image/*" className="hidden" disabled={imageUploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; handleImageUpload(file); }} /></label>
+                  <Field label={t("رابط الصورة المباشر", "Direct image URL")}><Input value={form.imageUrl || ""} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://example.com/product.jpg" /></Field>
+                  <p className="text-xs leading-5 text-slate-500">{t("يتم ضغط الصورة تلقائيًا لتقليل الحجم. في حالة عدم إعداد خدمة صور خارجية، تُحفظ نسخة صغيرة مع بيانات المنتج.", "Images are compressed automatically. Without an external image service, a small compressed copy is stored with the product record.")}</p>
+                </div>
+              </div>
             </div>
+            <Field label={t("حد المخزون المنخفض", "Low stock threshold")}><Input type="number" min="0" value={form.lowStockQty ?? 5} onChange={(e) => setForm({ ...form, lowStockQty: Math.max(0, parseInt(e.target.value, 10) || 0) })} /></Field>
             <div className="flex items-center gap-3">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.hasIMEI || false} onChange={(e) => setForm({ ...form, hasIMEI: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
