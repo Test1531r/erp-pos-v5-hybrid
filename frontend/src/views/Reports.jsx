@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, useStore } from "../store/index.js";
-import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign } from "lucide-react";
+import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign, GitCompareArrows } from "lucide-react";
 import toast from "react-hot-toast";
 
 const money = (value, locale) => Number(value || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -8,6 +8,7 @@ const Field = ({ label, children }) => <label className="flex flex-col gap-1 tex
 
 export default function Reports() {
   const branch = useStore(s => s.activeBranch);
+  const user = useStore(s => s.user);
   const language = useStore(s => s.language);
   const en = language === "en";
   const t = (ar, english) => en ? english : ar;
@@ -17,6 +18,8 @@ export default function Reports() {
   const [from, setFrom] = useState(first);
   const [to, setTo] = useState(now.toISOString().slice(0, 10));
   const [data, setData] = useState(null);
+  const [comparison, setComparison] = useState(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -32,6 +35,20 @@ export default function Reports() {
   }, [branch?.id, from, to, en]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadComparison = useCallback(async () => {
+    if (user?.role !== "SUPER_ADMIN") return;
+    setComparisonLoading(true);
+    try {
+      const response = await api.get(`/reports/branch-comparison?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      setComparison(response.data);
+    } catch (error) {
+      setComparison(null);
+      toast.error(error.response?.data?.error || t("تعذر تحميل مقارنة الفروع", "Could not load branch comparison"));
+    } finally { setComparisonLoading(false); }
+  }, [user?.role, from, to, en]);
+
+  useEffect(() => { if (user?.role === "SUPER_ADMIN") loadComparison(); }, [loadComparison, user?.role]);
 
   const fmt = value => money(value, locale);
   const card = (title, value, sub, Icon, tone) => (
@@ -52,6 +69,40 @@ export default function Reports() {
       <Field label={t("إلى تاريخ","To date")}><input type="date" value={to} min={from} onChange={e=>setTo(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"/></Field>
       <p className="pb-2 text-xs text-slate-400">{t("يتم احتساب التقرير وفق الفترة والفرع المحددين.","Report reflects the selected period and branch.")}</p>
     </section>
+    {user?.role === "SUPER_ADMIN" && (
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900"><GitCompareArrows className="h-5 w-5 text-indigo-600"/>{t("مقارنة الفروع", "Branch comparison")}</h2>
+            <p className="mt-1 text-xs text-slate-500">{t("مقارنة المؤشرات للفترة المختارة. صافي الربح تقديري وفق تكلفة البضاعة المسجلة والمصروفات المسجلة.", "Compare metrics for the selected period. Net profit is an estimate based on recorded COGS and expenses.")}</p>
+          </div>
+          <button disabled={comparisonLoading} onClick={loadComparison} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"><RefreshCw className={`mr-1 inline h-4 w-4 ${comparisonLoading ? "animate-spin" : ""}`}/>{t("تحديث المقارنة", "Refresh comparison")}</button>
+        </div>
+        {comparisonLoading && !comparison ? <p className="p-6 text-sm text-slate-500">{t("جارٍ تحميل مقارنة الفروع...", "Loading branch comparison...")}</p> :
+          comparison?.branches?.length ? <div className="overflow-x-auto"><table className="w-full text-sm">
+            <thead><tr className="bg-slate-50 text-right text-xs text-slate-500">
+              <th className="whitespace-nowrap px-3 py-3">{t("الفرع", "Branch")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("المبيعات", "Sales")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("المرتجعات", "Returns")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("صافي المبيعات", "Net sales")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("تكلفة البضاعة", "COGS")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("المصروفات", "Expenses")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("صافي الربح التقديري", "Est. net profit")}</th>
+              <th className="whitespace-nowrap px-3 py-3">{t("الفواتير", "Invoices")}</th>
+            </tr></thead>
+            <tbody>{comparison.branches.map((row) => <tr key={row.branchId} className="border-t border-slate-100">
+              <td className="whitespace-nowrap px-3 py-3"><b>{row.branchName}</b><div className="text-xs text-slate-400">{row.branchCode}</div></td>
+              <td className="whitespace-nowrap px-3 py-3">{fmt(row.revenue)}</td>
+              <td className="whitespace-nowrap px-3 py-3">{fmt(row.returns)}</td>
+              <td className="whitespace-nowrap px-3 py-3 font-semibold">{fmt(row.netSales)}</td>
+              <td className="whitespace-nowrap px-3 py-3">{fmt(row.cogs)}</td>
+              <td className="whitespace-nowrap px-3 py-3">{fmt(row.expenses)}</td>
+              <td className={`whitespace-nowrap px-3 py-3 font-bold ${row.netProfit >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{fmt(row.netProfit)}</td>
+              <td className="whitespace-nowrap px-3 py-3">{row.invoiceCount}</td>
+            </tr>)}</tbody>
+          </table></div> : <p className="p-6 text-sm text-slate-500">{t("لا توجد فروع نشطة أو بيانات لهذه الفترة.", "No active branches or data for this period.")}</p>}
+      </section>
+    )}
     {!data && loading && <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">{t("جارٍ إعداد التقرير...","Preparing report...")}</div>}
     {data && <>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
