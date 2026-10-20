@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, useStore } from "../store/index.js";
-import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign } from "lucide-react";
+import { BarChart3, RefreshCw, TrendingUp, Receipt, RotateCcw, Package, Wallet, CircleDollarSign, FileDown } from "lucide-react";
 import toast from "react-hot-toast";
 
 const money = (value, locale) => Number(value || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const localDate = date => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+const csvCell = value => {
+  let text = String(value ?? "");
+  if (/^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+};
 const Field = ({ label, children }) => <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">{label}{children}</label>;
 
 export default function Reports() {
@@ -13,9 +24,9 @@ export default function Reports() {
   const t = (ar, english) => en ? english : ar;
   const locale = en ? "en-US" : "ar-EG";
   const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const first = localDate(new Date(now.getFullYear(), now.getMonth(), 1));
   const [from, setFrom] = useState(first);
-  const [to, setTo] = useState(now.toISOString().slice(0, 10));
+  const [to, setTo] = useState(localDate(now));
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -34,6 +45,39 @@ export default function Reports() {
   useEffect(() => { load(); }, [load]);
 
   const fmt = value => money(value, locale);
+  const exportCsv = () => {
+    if (!data) return;
+    const rows = [
+      [t("تقرير الأرباح والخسائر", "Profit and loss report")],
+      [t("الفرع", "Branch"), branch?.name || ""],
+      [t("من تاريخ", "From"), from],
+      [t("إلى تاريخ", "To"), to],
+      [],
+      [t("المؤشر", "Metric"), t("القيمة", "Value")],
+      [t("إجمالي المبيعات", "Gross sales"), Number(data.revenue || 0)],
+      [t("المرتجعات", "Returns"), Number(data.returns || 0)],
+      [t("صافي المبيعات", "Net sales"), Number(data.netSales || 0)],
+      [t("تكلفة البضاعة", "Cost of goods sold"), Number(data.cogs || 0)],
+      [t("إجمالي الربح", "Gross profit"), Number(data.grossProfit || 0)],
+      [t("المصروفات", "Expenses"), Number(data.expenses || 0)],
+      [t("صافي الربح", "Net profit"), Number(data.netProfit || 0)],
+      [t("المشتريات", "Purchases"), Number(data.purchases || 0)],
+      [t("المدفوع للموردين", "Paid to suppliers"), Number(data.purchasePaid || 0)],
+      [t("عدد الفواتير", "Invoice count"), Number(data.invoiceCount || 0)],
+      [t("الخصومات", "Discounts"), Number(data.discount || 0)],
+      [t("الضرائب", "Tax"), Number(data.tax || 0)],
+    ];
+    const csv = "\\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\\r\\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `profit-loss-${from}-to-${to}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
   const card = (title, value, sub, Icon, tone) => (
     <div key={title} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3"><p className="text-sm text-slate-500">{title}</p><span className={`rounded-xl p-2 ${tone}`}><Icon className="h-5 w-5"/></span></div>
@@ -45,7 +89,10 @@ export default function Reports() {
   return <div dir={en ? "ltr" : "rtl"} className="space-y-5 p-4 md:p-6">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><BarChart3 className="h-6 w-6 text-indigo-600"/>{t("تقارير الإدارة","Management reports")}</h1><p className="mt-1 text-sm text-slate-500">{t("تحليل الأرباح والخسائر وتكلفة البضاعة والمرتجعات والمصروفات","Profit and loss, cost of goods, returns and expenses")}</p></div>
-      <button disabled={loading} onClick={load} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}/>{t("تحديث التقرير","Refresh report")}</button>
+      <div className="flex flex-wrap gap-2">
+        <button disabled={!data || loading} onClick={exportCsv} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><FileDown className="h-4 w-4"/>{t("تصدير CSV / Excel","Export CSV / Excel")}</button>
+        <button disabled={loading} onClick={load} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}/>{t("تحديث التقرير","Refresh report")}</button>
+      </div>
     </header>
     <section className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4">
       <Field label={t("من تاريخ","From date")}><input type="date" value={from} max={to} onChange={e=>setFrom(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm"/></Field>
