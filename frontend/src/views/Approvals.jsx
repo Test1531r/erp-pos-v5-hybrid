@@ -8,6 +8,9 @@ const typeLabel = { DISCOUNT: "خصم على فاتورة", EXPENSE: "مصروف
 const fmt = v => Number(v || 0).toLocaleString("ar-SA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function Approvals() {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const activeBranch = useStore(s => s.activeBranch);
   const user = useStore(s => s.user);
   const [rows, setRows] = useState([]);
@@ -56,15 +59,15 @@ export default function Approvals() {
   const canDecide = ["SUPER_ADMIN", "BRANCH_MANAGER"].includes(user?.role);
 
   return (
-    <div className="p-4 md:p-6 space-y-5" dir="rtl">
+    <div className="p-4 md:p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><ShieldCheck className="text-indigo-600" />مركز الموافقات</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><ShieldCheck className="text-indigo-600" />{t("مركز الموافقات", "Approvals center")}</h1>
           <p className="text-sm text-slate-500 mt-1">مراجعة الطلبات التي تتطلب اعتمادًا إداريًا وتوثيق سبب القرار.</p>
         </div>
         <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50" aria-label="تحديث">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          <span className="text-sm">تحديث</span>
+          <span className="text-sm">{t("تحديث", "Refresh")}</span>
         </button>
       </div>
 
@@ -86,9 +89,9 @@ export default function Approvals() {
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1"><UserRound className="w-3 h-3" />{r.requestedBy?.name || "مستخدم"}{r.requestedBy?.role ? ` • ${r.requestedBy.role}` : ""}</p>
                   {r.reason && <p className="text-sm mt-2 text-slate-700">{r.reason}</p>}
                   {isDiscount && <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
-                    <div className="bg-amber-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">الخصم المطلوب</span><b>{fmt(r.payload?.discountAmount ?? r.amount)} ج</b></div>
-                    <div className="bg-slate-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">إجمالي الأصناف</span><b>{fmt(r.payload?.subtotal)} ج</b></div>
-                    <div className="bg-slate-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">عدد الأصناف</span><b>{Number(r.payload?.itemCount || 0)}</b></div>
+                    <div className="bg-amber-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">{t("الخصم المطلوب", "Requested discount")}</span><b>{fmt(r.payload?.discountAmount ?? r.amount)} ج</b></div>
+                    <div className="bg-slate-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">{t("إجمالي الأصناف", "Items subtotal")}</span><b>{fmt(r.payload?.subtotal)} ج</b></div>
+                    <div className="bg-slate-50 rounded-lg p-3"><span className="text-slate-500 block text-xs">{t("عدد الأصناف", "Item count")}</span><b>{Number(r.payload?.itemCount || 0)}</b></div>
                   </div>}
                   <p className="text-xs text-slate-400 mt-2 flex items-center gap-1"><Clock3 className="w-3 h-3" />{new Date(r.createdAt).toLocaleString("ar-SA")}</p>
                   {r.decisionNotes && <p className="text-sm mt-2 text-slate-600">ملاحظات القرار: {r.decisionNotes}</p>}
@@ -96,8 +99,8 @@ export default function Approvals() {
                 <span className={`px-2.5 py-1 text-xs rounded-full whitespace-nowrap ${r.status === "PENDING" ? "bg-amber-100 text-amber-700" : r.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>{statusLabel[r.status] || r.status}</span>
               </div>
               {canDecide && r.status === "PENDING" && <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-                <button onClick={() => openDecision(r, "REJECTED")} disabled={busyId === r.id} className="px-4 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"><X className="w-4 h-4" />رفض</button>
-                <button onClick={() => openDecision(r, "APPROVED")} disabled={busyId === r.id || r.requestedById === user?.id} title={r.requestedById === user?.id ? "لا يمكنك اعتماد طلبك الشخصي" : "اعتماد"} className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex items-center gap-2"><Check className="w-4 h-4" />اعتماد</button>
+                <button onClick={() => openDecision(r, "REJECTED")} disabled={busyId === r.id} className="px-4 py-2 rounded-xl border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"><X className="w-4 h-4" />{t("رفض", "Reject")}</button>
+                <button onClick={() => openDecision(r, "APPROVED")} disabled={busyId === r.id || r.requestedById === user?.id} title={r.requestedById === user?.id ? "لا يمكنك اعتماد طلبك الشخصي" : "اعتماد"} className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 flex items-center gap-2"><Check className="w-4 h-4" />{t("اعتماد", "Approve")}</button>
               </div>}
             </article>
           );
@@ -118,11 +121,11 @@ export default function Approvals() {
             <button onClick={() => setDecisionDraft(null)} disabled={Boolean(busyId)} aria-label="إغلاق" className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-50"><X className="w-5 h-5" /></button>
           </div>
           <div className="p-5 space-y-2">
-            <label htmlFor="decision-notes" className="text-sm font-semibold text-slate-700 flex items-center gap-2"><MessageSquareText className="w-4 h-4" />ملاحظات القرار <span className="font-normal text-slate-400">(اختياري)</span></label>
+            <label htmlFor="decision-notes" className="text-sm font-semibold text-slate-700 flex items-center gap-2"><MessageSquareText className="w-4 h-4" />ملاحظات القرار <span className="font-normal text-slate-400">{t("(اختياري)", "(Optional)")}</span></label>
             <textarea id="decision-notes" value={decisionNotes} onChange={e => setDecisionNotes(e.target.value)} rows={3} maxLength={500} placeholder="أضف سببًا أو ملاحظة تساعد في توثيق القرار..." className="w-full resize-y rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
           </div>
           <div className="flex gap-2 justify-end p-4 bg-slate-50 border-t border-slate-100">
-            <button onClick={() => setDecisionDraft(null)} disabled={Boolean(busyId)} className="rounded-xl px-4 py-2.5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50">إلغاء</button>
+            <button onClick={() => setDecisionDraft(null)} disabled={Boolean(busyId)} className="rounded-xl px-4 py-2.5 border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-50">{t("إلغاء", "Cancel")}</button>
             <button onClick={decide} disabled={Boolean(busyId)} className={`rounded-xl px-4 py-2.5 font-semibold text-white disabled:opacity-60 ${decisionDraft.decision === "APPROVED" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}>{busyId ? "جارٍ الحفظ..." : decisionDraft.decision === "APPROVED" ? "تأكيد الاعتماد" : "تأكيد الرفض"}</button>
           </div>
         </section>
