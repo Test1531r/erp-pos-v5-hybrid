@@ -139,11 +139,15 @@ if (fs.existsSync(frontendDist)) {
   app.get(/^\/(?!api|health|socket\.io).*/, (req, res) => res.sendFile(path.join(frontendDist, "index.html")));
 }
 
-app.use((req, res) => res.status(404).json({ error: "المسار غير موجود" }));
+app.use((req, res) => {
+  const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+  res.status(404).json({ error: english ? "Route not found." : "المسار غير موجود" });
+});
 app.use((err, req, res, next) => {
   console.error("[Unhandled]", err);
-  if (err.message === "CORS origin not allowed") return res.status(403).json({ error: "Origin غير مسموح" });
-  res.status(500).json({ error: "حدث خطأ داخلي غير متوقع" });
+  const english = String(req.headers["accept-language"] || "").toLowerCase().startsWith("en");
+  if (err.message === "CORS origin not allowed") return res.status(403).json({ error: english ? "Origin is not allowed." : "Origin غير مسموح" });
+  res.status(500).json({ error: english ? "An unexpected internal error occurred." : "حدث خطأ داخلي غير متوقع" });
 });
 
 async function bootstrapAdmin() {
