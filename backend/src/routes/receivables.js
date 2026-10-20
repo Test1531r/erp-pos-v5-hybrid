@@ -61,6 +61,16 @@ router.post("/:id/pay", async (req, res) => {
       if (amount.greaterThan(remaining)) {
         throw Object.assign(new Error("الدفعة أكبر من المبلغ المتبقي"), { status: 400 });
       }
+      const requestedInstallmentId = String(req.body.installmentId || "").trim();
+      let targetInstallments = receivable.installments;
+      if (requestedInstallmentId) {
+        const selectedInstallment = receivable.installments.find((item) => item.id === requestedInstallmentId);
+        if (!selectedInstallment) throw Object.assign(new Error("القسط المحدد لا يتبع هذه المديونية"), { status: 400 });
+        const installmentRemaining = D(selectedInstallment.amount).sub(selectedInstallment.paidAmount);
+        if (installmentRemaining.lte(0)) throw Object.assign(new Error("هذا القسط مسدد بالفعل"), { status: 409 });
+        if (amount.greaterThan(installmentRemaining)) throw Object.assign(new Error("مبلغ التحصيل أكبر من المتبقي في القسط المحدد"), { status: 400 });
+        targetInstallments = [selectedInstallment];
+      }
 
       const movement = await postMovement(tx, {
         branchId: req.branchId,
@@ -94,7 +104,7 @@ router.post("/:id/pay", async (req, res) => {
       });
 
       let left = amount;
-      for (const installment of receivable.installments) {
+      for (const installment of targetInstallments) {
         if (left.lte(0)) break;
         const installmentRemaining = D(installment.amount).sub(installment.paidAmount);
         if (installmentRemaining.lte(0)) continue;
