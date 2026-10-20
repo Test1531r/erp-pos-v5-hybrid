@@ -135,7 +135,7 @@ export function Inventory() {
           <p className="mt-1 text-2xl font-extrabold text-amber-700">{inventorySummary.lowStock}</p>
           <p className="mt-1 text-xs text-slate-500">{t("اضغط لعرض المنتجات التي تحتاج مراجعة", "Select to filter items needing review")}</p>
         </button>
-        <button onClick={() => setStockFilter("out")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "out" ? "border-rose-300 bg-rose-100 ring-1 ring-rose-100" : "border-rose-200 bg-rose-50 hover:bg-rose-100"} ` + "rounded-2xl"} bg-rose-50 p-4 text-right transition-colors hover:bg-rose-100">
+        <button onClick={() => setStockFilter("out")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "out" ? "border-rose-300 bg-rose-100 ring-1 ring-rose-100" : "border-rose-200 bg-rose-50 hover:bg-rose-100"}`}>
           <p className="text-sm text-rose-700">{t("نفد المخزون", "Out of stock")}</p>
           <p className="mt-1 text-2xl font-extrabold text-rose-700">{inventorySummary.outOfStock}</p>
         </button>
