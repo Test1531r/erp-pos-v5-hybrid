@@ -54,7 +54,7 @@ router.patch("/accounts/:id", authorize(...financeRoles), async (req, res) => {
   } catch { res.status(500).json({ error: "تعذر تعديل الحساب" }); }
 });
 
-router.get("/transactions", async (req, res) => {
+router.get("/transactions", authorize(...financeRoles), async (req, res) => {
   try {
     const { accountId, type, from, to, search } = req.query;
     const where = { branchId: req.branchId };
@@ -94,7 +94,7 @@ router.post("/transfer", authorize(...financeRoles), async (req, res) => {
   } catch (err) { res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر تنفيذ التحويل" }); }
 });
 
-router.get("/summary", async (req, res) => {
+router.get("/summary", authorize(...financeRoles), async (req, res) => {
   try {
     await prisma.$transaction((tx) => ensureDefaultAccounts(tx, req.branchId));
     const start = req.query.from ? new Date(req.query.from) : new Date(new Date().setHours(0,0,0,0));
