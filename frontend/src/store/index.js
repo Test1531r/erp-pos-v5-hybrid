@@ -77,6 +77,8 @@ export const useStore = create(
       activeModule: "dashboard",
       sidebarOpen: true,
       language: "ar",
+      systemFeatures: {},
+      setSystemFeatures: (systemFeatures) => set({ systemFeatures: systemFeatures || {} }),
       setLanguage: (language) => set({ language: language === "en" ? "en" : "ar" }),
 
       // ── AUTH ──────────────────────────────
