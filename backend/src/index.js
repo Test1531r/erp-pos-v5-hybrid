@@ -102,7 +102,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/branches", enforceSystemFeature("branches"), branchRoutes);
 app.use("/api/users", enforceSystemFeature("users"), userRoutes);
 app.use("/api/categories", categoryRoutes);
-app.use("/api/products", productRoutes);
+app.use("/api/products", enforceSystemFeature("inventory"), productRoutes);
 app.use("/api/inventory", enforceSystemFeature("inventory"), inventoryRoutes);
 app.use("/api/pos", enforceSystemFeature("pos"), posRoutes);
 app.use("/api/invoices", enforceSystemFeature("sales"), invoiceRoutes);
