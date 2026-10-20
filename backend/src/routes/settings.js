@@ -17,6 +17,13 @@ const DEFAULT_FEATURES = {
   users: true, branches: true, loyalty: true, installments: true, offlineMode: true
 };
 
+router.get("/features", async (req, res) => {
+  try {
+    const row = await prisma.systemSetting.findUnique({ where: { id: "global" }, select: { features: true, updatedAt: true } });
+    res.json({ features: { ...DEFAULT_FEATURES, ...(row?.features || {}) }, updatedAt: row?.updatedAt || null });
+  } catch { res.status(500).json({ error: "تعذر تحميل مميزات النظام" }); }
+});
+
 router.get("/system", authorize("SUPER_ADMIN"), async (req, res) => {
   try {
     const row = await prisma.systemSetting.findUnique({ where: { id: "global" } });
