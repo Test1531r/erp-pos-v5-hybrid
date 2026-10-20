@@ -2,7 +2,55 @@ import { Router } from "express";
 import { prisma } from "../index.js";
 import { authenticate, authorize, requireBranch } from "../middleware/auth.js";
 import { audit } from "../utils/audit.js";
-const router=Router();router.use(authenticate,requireBranch);
+import { Router } from "express";
+import { prisma } from "../index.js";
+import { authenticate, authorize, requireBranch } from "../middleware/auth.js";
+import { audit } from "../utils/audit.js";
+
+const router = Router();
+router.use(authenticate, requireBranch);
+const DEFAULT_FEATURES = {
+  dashboard: true, pos: true, inventory: true, stockLedger: true, purchases: true,
+  receivables: true, approvals: true, growth: true, closing: true, tools: true,
+  stocktake: true, reports: true, sync: true, sales: true, customers: true,
+  repairs: true, transfers: true, expenses: true, finance: true, returns: true,
+  users: true, branches: true, loyalty: true, installments: true, offlineMode: true
+};
+
+router.get("/system", authorize("SUPER_ADMIN"), async (req, res) => {
+  try {
+    const row = await prisma.systemSetting.findUnique({ where: { id: "global" } });
+    res.json({ features: { ...DEFAULT_FEATURES, ...(row?.features || {}) }, updatedAt: row?.updatedAt || null });
+  } catch {
+    res.status(500).json({ error: "تعذر تحميل إعدادات النظام" });
+  }
+});
+
+router.put("/system", authorize("SUPER_ADMIN"), async (req, res) => {
+  try {
+    if (!req.body?.features || typeof req.body.features !== "object" || Array.isArray(req.body.features)) {
+      return res.status(400).json({ error: "إعدادات المميزات غير صالحة" });
+    }
+    const features = { ...DEFAULT_FEATURES };
+    for (const key of Object.keys(DEFAULT_FEATURES)) {
+      if (req.body.features[key] !== undefined) {
+        if (typeof req.body.features[key] !== "boolean") return res.status(400).json({ error: `قيمة الميزة ${key} يجب أن تكون true أو false` });
+        features[key] = req.body.features[key];
+      }
+    }
+    const row = await prisma.systemSetting.upsert({
+      where: { id: "global" },
+      create: { id: "global", features },
+      update: { features }
+    });
+    await audit(req.user, "SYSTEM_FEATURES_UPDATE", "SystemSetting", row.id, features, req.branchId);
+    res.json({ features: { ...DEFAULT_FEATURES, ...row.features }, updatedAt: row.updatedAt });
+  } catch (err) {
+    res.status(500).json({ error: "تعذر حفظ إعدادات النظام" });
+  }
+});
+
+
 router.get("/",async(req,res)=>{const row=await prisma.branchSetting.upsert({where:{branchId:req.branchId},create:{branchId:req.branchId},update:{}});res.json(row)});
 router.put("/",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,res)=>{try{
  const data={};
