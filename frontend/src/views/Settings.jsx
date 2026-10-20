@@ -18,7 +18,7 @@ const FEATURES = [
 const defaultFeatures = Object.fromEntries(FEATURES.map(([key])=>[key,true]));
 const fieldClass = "mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
 export default function Settings() {
-  const branch=useStore(s=>s.activeBranch), user=useStore(s=>s.user), language=useStore(s=>s.language);
+  const branch=useStore(s=>s.activeBranch), user=useStore(s=>s.user), language=useStore(s=>s.language), setGlobalFeatures=useStore(s=>s.setSystemFeatures);
   const en=language==="en", t=(ar,english)=>en?english:ar;
   const [tab,setTab]=useState("branch"),[form,setForm]=useState(null),[features,setFeatures]=useState(defaultFeatures),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false);
   const isSuperAdmin=user?.role==="SUPER_ADMIN";
@@ -41,7 +41,7 @@ export default function Settings() {
   },[branch?.id,isSuperAdmin]);
   const update=(key,value)=>setForm(old=>({...old,[key]:value}));
   const saveBranch=async()=>{setSaving(true);try{const {data}=await api.put("/settings",form);setForm(data);toast.success(t("تم حفظ إعدادات الفرع","Branch settings saved"));}catch(e){toast.error(e.response?.data?.error||t("تعذر الحفظ","Could not save settings"));}finally{setSaving(false)}};
-  const saveFeatures=async()=>{setSaving(true);try{const {data}=await api.put("/settings/system",{features});setFeatures({...defaultFeatures,...data.features});toast.success(t("تم حفظ مميزات النظام","System feature settings saved"));}catch(e){toast.error(e.response?.data?.error||t("تعذر حفظ مميزات النظام","Could not save system features"));}finally{setSaving(false)}};
+  const saveFeatures=async()=>{setSaving(true);try{const {data}=await api.put("/settings/system",{features});setFeatures({...defaultFeatures,...data.features});setGlobalFeatures({...defaultFeatures,...data.features});toast.success(t("تم حفظ مميزات النظام","System feature settings saved"));}catch(e){toast.error(e.response?.data?.error||t("تعذر حفظ مميزات النظام","Could not save system features"));}finally{setSaving(false)}};
   const tabs=[["branch",Store,t("إعدادات الفرع","Branch settings")],...(isSuperAdmin?[["system",ShieldCheck,t("تحكم النظام","System control")]]:[])];
   if(loading||!form)return <div className="p-8 text-center text-slate-500">{t("جارٍ تحميل الإعدادات...","Loading settings...")}</div>;
   return <div className="p-4 md:p-6 space-y-5" dir={en?"ltr":"rtl"}>
