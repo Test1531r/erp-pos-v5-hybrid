@@ -98,6 +98,8 @@ export function Inventory() {
   const [imageUploading, setImageUploading] = useState(false);
   const [expandedProducts, setExpandedProducts] = useState({});
 
+  const quantityFor = (product) => product.variants?.length ? product.variants.reduce((sum, variant) => sum + Number(variant.inventory?.[0]?.quantity ?? 0), 0) : Number(quantityFor(product));
+
   const load = async () => {
     setLoading(true);
     try {
@@ -109,7 +111,7 @@ export function Inventory() {
 
   useEffect(() => { load(); fetchCategories(); }, [search, activeBranch?.id]);
   const inventorySummary = products.reduce((summary, product) => {
-    const quantity = product.inventory?.[0]?.quantity ?? 0;
+    const quantity = quantityFor(product);
     if (product.isActive !== false && quantity <= Number(product.lowStockQty ?? 5)) {
       summary.lowStock += 1;
       if (quantity === 0) summary.outOfStock += 1;
@@ -117,7 +119,7 @@ export function Inventory() {
     return summary;
   }, { lowStock: 0, outOfStock: 0 });
   const visibleProducts = products.filter((product) => {
-    const quantity = product.inventory?.[0]?.quantity ?? 0;
+    const quantity = quantityFor(product);
     const matchesStock = stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
     const matchesCategory = categoryFilter === "all" || product.categoryId === categoryFilter;
     return matchesStock && matchesCategory;
@@ -125,7 +127,7 @@ export function Inventory() {
   const reorderSuggestions = products
     .filter((product) => product.isActive !== false && !product.hasIMEI)
     .map((product) => {
-      const quantity = Number(product.inventory?.[0]?.quantity ?? 0);
+      const quantity = Number(quantityFor(product));
       const minimum = Math.max(0, Number(product.lowStockQty ?? 5));
       const target = Math.max(minimum + 1, minimum * 2, 1);
       return { ...product, currentQuantity: quantity, minimumQuantity: minimum, suggestedQuantity: Math.max(0, target - quantity) };
@@ -294,7 +296,7 @@ export function Inventory() {
         {viewMode === "grid" ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-4">
             {visibleProducts.map(p => {
-              const qty = p.inventory?.[0]?.quantity ?? 0;
+              const qty = quantityFor(p);
               const lowStock = qty <= Number(p.lowStockQty ?? 5);
               return <article key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
                 <div className="relative flex h-44 items-center justify-center bg-slate-50 p-3">
@@ -306,6 +308,12 @@ export function Inventory() {
                   <div className="min-h-[56px]"><h3 className="line-clamp-2 font-bold text-slate-800">{p.name}</h3><p className="mt-1 text-xs text-slate-400">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku}</p></div>
                   <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="max-w-[55%] truncate text-xs text-slate-500">{p.category?.name || t("بدون تصنيف", "Uncategorized")}</span><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600 hover:bg-blue-50" title="IMEI">IMEI</button>}</div></div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs font-semibold text-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button>
+                    {p.variants?.length > 0 && <button onClick={() => toggleVariants(p.id)} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs">{t("المتغيرات", "Variants")} ({p.variants.length})</button>}
+                    <button onClick={() => handleDeleteProduct(p)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold text-rose-600"><Trash2 className="h-3.5 w-3.5" />{t("حذف", "Delete")}</button>
+                  </div>
+                  {expandedProducts[p.id] && p.variants?.length > 0 && <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3"><div className="text-xs font-bold text-indigo-800">{t("متغيرات المنتج", "Product variants")}</div>{p.variants.map(variant => <div key={variant.id} className="flex items-center gap-2 rounded-lg border bg-white p-2"><div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-50">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.variantLabel || variant.name} className="h-full w-full object-contain" /> : <Package className="m-2 h-6 w-6 text-slate-300" />}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{variant.variantLabel || variant.name}</p><p className="text-[11px] text-slate-500">{variant.sku} · {t("المخزون", "Stock")}: {variant.inventory?.[0]?.quantity ?? 0}</p><p className="text-xs font-semibold text-indigo-700">{Number(variant.salePrice || 0).toLocaleString()} {t("ج.م", "EGP")}</p></div><button onClick={() => openEdit(variant)} className="rounded-lg border p-2 text-slate-600" title={t("تعديل", "Edit")}><Edit2 className="h-3.5 w-3.5" /></button><button onClick={() => handleDeleteProduct(variant)} className="rounded-lg p-2 text-rose-600" title={t("حذف", "Delete")}><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div>}
                 </div>
               </article>;
             })}
@@ -314,7 +322,7 @@ export function Inventory() {
         ) : viewMode === "compact" ? (
           <div className="divide-y divide-slate-100 p-2 sm:p-3">
             {visibleProducts.map(p => {
-              const qty = p.inventory?.[0]?.quantity ?? 0;
+              const qty = quantityFor(p);
               const lowStock = qty <= Number(p.lowStockQty ?? 5);
               return <article key={p.id} className="flex items-center gap-3 rounded-xl p-2 sm:gap-4 sm:p-3 hover:bg-slate-50">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white sm:h-20 sm:w-20">
@@ -334,7 +342,7 @@ export function Inventory() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b bg-slate-50 text-right text-xs text-slate-500"><th className="px-4 py-3">{t("اسم المنتج", "Product name")}</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3">{t("التصنيف", "Category")}</th><th className="px-4 py-3">{t("سعر البيع", "Sale price")}</th><th className="px-4 py-3">{t("المخزون", "Stock")}</th><th className="px-4 py-3">{t("الحالة", "Status")}</th><th className="px-4 py-3">{t("إجراءات", "Actions")}</th></tr></thead>
-              <tbody>{visibleProducts.map(p => { const qty = p.inventory?.[0]?.quantity ?? 0; return <tr key={p.id} className="border-b hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td><td className="px-4 py-3 font-mono text-slate-500">{p.sku}</td><td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td><td className="px-4 py-3 font-semibold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</td><td className={`px-4 py-3 font-bold ${qty === 0 ? "text-rose-600" : qty <= Number(p.lowStockQty ?? 5) ? "text-amber-600" : "text-emerald-600"}`}>{qty}</td><td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge></td><td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("تعديل الكمية", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button></div></td></tr>; })}{visibleProducts.length === 0 && !loading && <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>}</tbody>
+              <tbody>{visibleProducts.map(p => { const qty = quantityFor(p); return <tr key={p.id} className="border-b hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td><td className="px-4 py-3 font-mono text-slate-500">{p.sku}</td><td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td><td className="px-4 py-3 font-semibold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</td><td className={`px-4 py-3 font-bold ${qty === 0 ? "text-rose-600" : qty <= Number(p.lowStockQty ?? 5) ? "text-amber-600" : "text-emerald-600"}`}>{qty}</td><td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge></td><td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("تعديل الكمية", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button></div></td></tr>; })}{visibleProducts.length === 0 && !loading && <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>}</tbody>
             </table>
           </div>
         ) : (
@@ -354,7 +362,7 @@ export function Inventory() {
             </thead>
             <tbody>
               {visibleProducts.map((p) => {
-                const qty = p.inventory?.[0]?.quantity ?? 0;
+                const qty = quantityFor(p);
                 const lowStock = qty <= p.lowStockQty;
                 return (
                   <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
