@@ -12,7 +12,7 @@ const localDate = date => {
 };
 const csvCell = value => {
   let text = String(value ?? "");
-  if (/^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
+  if (typeof value === "string" && /^[=+@\\-\\t\\r]/.test(text)) text = "'" + text;
   return '"' + text.replace(/"/g, '""') + '"';
 };
 const Field = ({ label, children }) => <label className="flex flex-col gap-1 text-xs font-semibold text-slate-600">{label}{children}</label>;
