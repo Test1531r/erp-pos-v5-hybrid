@@ -215,7 +215,7 @@ function CheckoutModal({ onClose }) {
         const approved = (Array.isArray(data) ? data : []).find(r => r.id === discountApprovalId && !r.entityId);
         if (alive && approved) {
           setDiscountApprovalStatus("APPROVED");
-          toast.success("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.");
+          toast.success(t("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.", "Discount approved. You can complete the sale."));
         }
       } catch {}
     };
@@ -252,9 +252,9 @@ function CheckoutModal({ onClose }) {
       });
       setDiscountApprovalId(data.id);
       setDiscountApprovalStatus("PENDING");
-      toast.success("تم إرسال طلب الخصم. سيتم التحقق من الموافقة تلقائيًا.");
+      toast.success(t("تم إرسال طلب الخصم. سيتم التحقق من الموافقة تلقائيًا.", "Discount request sent. Approval will be checked automatically."));
     } catch (e) {
-      toast.error(e.response?.data?.error || "تعذر إرسال طلب الموافقة");
+      toast.error(e.response?.data?.error || t("تعذر إرسال طلب الموافقة", "Could not send approval request"));
     } finally {
       setDiscountApprovalLoading(false);
     }
@@ -263,17 +263,17 @@ function CheckoutModal({ onClose }) {
   const handlePrint = () => {
     const inv = lastInvoice;
     const win = window.open("", "_blank");
-    win.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="UTF-8"><title>فاتورة</title>
+    win.document.write(`<!DOCTYPE html><html lang="${en ? "en" : "ar"}" dir="${en ? "ltr" : "rtl"}"><head><meta charset="UTF-8"><title>${t("فاتورة", "Invoice")}</title>
     <style>body{font-family:Arial;width:80mm;margin:0 auto;font-size:12px}
     .c{text-align:center}.b{font-weight:bold}.sep{border-top:1px dashed #000;margin:6px 0}
     .row{display:flex;justify-content:space-between}</style></head><body>
     <div class="c"><h2>${t("متجر الإلكترونيات", "Electronics store")}</h2><p class="b">${t("فاتورة مبيعات", "Sales invoice")}</p>
-    <p>${inv.invoiceNumber}</p><p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p></div>
+    <p>${inv.invoiceNumber}</p><p>${new Date(inv.createdAt).toLocaleString(en ? "en-US" : "ar-EG")}</p></div>
     <div class="sep"></div>
     ${(inv.items || []).map((i) => `<div><p class="b">${i.productName}</p>
     <div class="row"><span>${i.quantity} × ${parseFloat(i.unitPrice).toFixed(2)}</span><span>${parseFloat(i.lineTotal).toFixed(2)}</span></div>
     ${i.imeiNumbers?.length ? `<p style="font-size:10px">IMEI: ${i.imeiNumbers.join(", ")}</p>` : ""}</div><div class="sep" style="border-style:dotted"></div>`).join("")}
-    <div class="row"><span>المجموع</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
+    <div class="row"><span>${t("المجموع", "Subtotal")}</span><span>${parseFloat(inv.subtotal).toFixed(2)}</span></div>
     ${parseFloat(inv.discountAmount) > 0 ? `<div class="row"><span>${t("خصم", "Discount")}</span><span>-${parseFloat(inv.discountAmount).toFixed(2)}</span></div>` : ""}
     ${parseFloat(inv.taxAmount) > 0 ? `<div class="row"><span>${t("ضريبة", "Tax")}</span><span>${parseFloat(inv.taxAmount).toFixed(2)}</span></div>` : ""}
     <div class="sep"></div><div class="row b" style="font-size:14px"><span>${t("الإجمالي", "Total")}</span><span>${parseFloat(inv.total).toFixed(2)}</span></div>
@@ -286,7 +286,7 @@ function CheckoutModal({ onClose }) {
   };
 
   if (receipt) return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div dir={en ? "ltr" : "rtl"} className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl text-center p-8">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 className="w-10 h-10 text-green-600" />
@@ -319,7 +319,7 @@ function CheckoutModal({ onClose }) {
           <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm">
             <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{totals.subtotal.toFixed(2)} ج</span></div>
             {cartDiscount > 0 && <div className="flex justify-between text-green-600"><span>{t("خصم", "Discount")}</span><span>−{parseFloat(cartDiscount).toFixed(2)} ج</span></div>}
-            {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>ضريبة ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
+            {cartTaxRate > 0 && <div className="flex justify-between text-slate-600"><span>{t("ضريبة", "Tax")} ({cartTaxRate}%)</span><span>{totals.taxAmount.toFixed(2)} ج</span></div>}
             <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>{t("الإجمالي", "Total")}</span><span className="text-indigo-600">{totals.total.toFixed(2)} ج</span></div>
             {cartCustomer && <div className="text-indigo-600 text-xs flex items-center gap-1"><User className="w-3 h-3" /> {cartCustomer.name}</div>}
           </div>
@@ -330,14 +330,14 @@ function CheckoutModal({ onClose }) {
               <input value={promotionCode} onChange={(e)=>setPromotionCode(e.target.value.toUpperCase())} placeholder={t("مثال: SUMMER10", "e.g. SUMMER10")} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </div>
             <div>
-              <label className="text-sm font-semibold text-slate-700 mb-2 block">استبدال نقاط الولاء {cartCustomer ? `(المتاح ${cartCustomer.loyaltyPoints || 0})` : ""}</label>
+              <label className="text-sm font-semibold text-slate-700 mb-2 block">{t("استبدال نقاط الولاء", "Redeem loyalty points")} {cartCustomer ? `(المتاح ${cartCustomer.loyaltyPoints || 0})` : ""}</label>
               <input type="number" min="0" max={cartCustomer?.loyaltyPoints || 0} disabled={!cartCustomer} value={redeemPoints} onChange={(e)=>setRedeemPoints(Math.max(0, Math.min(Number(e.target.value)||0, cartCustomer?.loyaltyPoints||0)))} className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </div>
           </div>
 
           {needsDiscountApproval && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
-              <p className="text-sm font-semibold text-amber-900">هذا الخصم يتجاوز حدك المسموح ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
+              <p className="text-sm font-semibold text-amber-900">{t("هذا الخصم يتجاوز حدك المسموح", "This discount exceeds your allowed limit")} ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
               {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، يمكنك إتمام البيع." : "بانتظار اعتماد المدير..."}</p>}
               <button type="button" onClick={requestDiscountApproval} disabled={discountApprovalLoading || !!discountApprovalId} className="w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
                 {discountApprovalLoading ? "جارٍ إرسال الطلب..." : discountApprovalStatus === "APPROVED" ? "تمت الموافقة" : discountApprovalId ? "تم إرسال الطلب — بانتظار المدير" : "طلب موافقة المدير على الخصم"}
@@ -356,7 +356,7 @@ function CheckoutModal({ onClose }) {
 
           {/* Payment method */}
           <div>
-            <p className="text-sm font-semibold text-slate-700 mb-2">طريقة الدفع</p>
+            <p className="text-sm font-semibold text-slate-700 mb-2">{t("طريقة الدفع", "Payment method")}</p>
             <div className="grid grid-cols-3 gap-2">
               {PAYMENT_METHODS.map(({ value, label, icon: Icon, color, bg }) => (
                 <button key={value} onClick={() => setMethod(value)} className={`flex flex-col items-center gap-1 p-3 rounded-xl border text-xs font-medium transition-all ${method === value ? bg + " border-2" : "border-slate-200 hover:bg-slate-50"}`}>
@@ -389,8 +389,8 @@ function CheckoutModal({ onClose }) {
 
           {method === "CREDIT" && !mixed && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-3">
-              <p className="text-sm font-semibold text-amber-800">بيع آجل / أقساط</p>
-              {!cartCustomer && <p className="text-xs text-red-600">يجب اختيار عميل من السلة أولاً.</p>}
+              <p className="text-sm font-semibold text-amber-800">{t("بيع آجل / أقساط", "Credit sale / installments")}</p>
+              {!cartCustomer && <p className="text-xs text-red-600">{t("يجب اختيار عميل من السلة أولاً.", "Select a customer in the cart first.")}</p>}
               <div className="grid grid-cols-3 gap-2">
                 <div><label className="text-[11px] text-slate-500">{t("تاريخ الاستحقاق", "Due date")}</label><input type="date" value={credit.dueDate} onChange={e=>setCredit({...credit,dueDate:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
                 <div><label className="text-[11px] text-slate-500">{t("عدد الأقساط", "Installment count")}</label><input type="number" min="0" max="60" value={credit.installmentsCount} onChange={e=>setCredit({...credit,installmentsCount:Number(e.target.value)})} className="w-full border rounded-lg px-2 py-2 text-xs bg-white"/></div>
@@ -415,7 +415,7 @@ function CheckoutModal({ onClose }) {
               <button onClick={() => setAmountPaid(totals.total.toFixed(2))} className="text-xs bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-3 py-1.5 rounded-lg font-medium">{t("المبلغ بالظبط", "Exact amount")}</button>
             </div>
             {paid >= totals.total && <p className="text-green-600 text-sm font-medium mt-2">الباقي: {change.toFixed(2)} ج</p>}
-            {paid > 0 && paid < totals.total && <p className="text-red-500 text-sm mt-2">ناقص: {(totals.total - paid).toFixed(2)} ج</p>}
+            {paid > 0 && paid < totals.total && <p className="text-red-500 text-sm mt-2">{t("ناقص:", "Short by:")} {(totals.total - paid).toFixed(2)} ج</p>}
           </div>}
         </div>
 
