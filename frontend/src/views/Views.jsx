@@ -5,10 +5,11 @@ import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
 // ── SHARED MODAL ────────────────────────────────────────────
-function Modal({ title, onClose, children, footer }) {
+function Modal({ title, onClose, children, footer, size = "lg" }) {
+  const widthClass = size === "xl" ? "max-w-4xl" : size === "md" ? "max-w-md" : "max-w-lg";
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className={`bg-white rounded-2xl w-full ${widthClass} shadow-2xl max-h-[90vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
         <div className="p-5 border-b flex items-center justify-between shrink-0">
           <h3 className="font-bold text-slate-800">{title}</h3>
           <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
@@ -439,7 +440,7 @@ export function Sales() {
 
       printWindow.document.write(`
         <!doctype html>
-        <html lang="ar" dir={en ? "ltr" : "rtl"}>
+        <html lang="${en ? "en" : "ar"}" dir="${en ? "ltr" : "rtl"}">
           <head>
             <meta charset="UTF-8" />
             <title>${esc(inv.invoiceNumber)}</title>
@@ -474,7 +475,7 @@ export function Sales() {
               ${inv.branch?.phone ? `<p>${esc(inv.branch.phone)}</p>` : ""}
               ${inv.branch?.taxNumber ? `<p>الرقم الضريبي: ${esc(inv.branch.taxNumber)}</p>` : ""}
               <div class="sep"></div>
-              <p class="bold">{t("فاتورة مبيعات", "Sales invoice")}</p>
+              <p class="bold">${esc(t("فاتورة مبيعات", "Sales invoice"))}</p>
               <p>${esc(inv.invoiceNumber)}</p>
               <p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p>
             </div>
@@ -487,35 +488,35 @@ export function Sales() {
             ${itemsHtml}
 
             <div class="row">
-              <span>{t("المجموع الفرعي", "Subtotal")}</span>
+              <span>${esc(t("المجموع الفرعي", "Subtotal"))}</span>
               <span>${money(inv.subtotal)} ج</span>
             </div>
 
             ${
               Number(inv.discountAmount) > 0
-                ? `<div class="row"><span>{t("الخصم", "Discount")}</span><span>-${money(inv.discountAmount)} ج</span></div>`
+                ? `<div class="row"><span>${esc(t("الخصم", "Discount"))}</span><span>-${money(inv.discountAmount)} ج</span></div>`
                 : ""
             }
 
             ${
               Number(inv.taxAmount) > 0
-                ? `<div class="row"><span>{t("الضريبة", "Tax")}</span><span>${money(inv.taxAmount)} ج</span></div>`
+                ? `<div class="row"><span>${esc(t("الضريبة", "Tax"))}</span><span>${money(inv.taxAmount)} ج</span></div>`
                 : ""
             }
 
             <div class="sep"></div>
             <div class="row total">
-              <span>{t("الإجمالي", "Total")}</span>
+              <span>${esc(t("الإجمالي", "Total"))}</span>
               <span>${money(inv.total)} ج</span>
             </div>
             <div class="row">
-              <span>{t("المدفوع", "Paid")}</span>
+              <span>${esc(t("المدفوع", "Paid"))}</span>
               <span>${money(inv.amountPaid)} ج</span>
             </div>
 
             ${
               Number(inv.changeGiven) > 0
-                ? `<div class="row"><span>{t("الباقي", "Change due")}</span><span>${money(inv.changeGiven)} ج</span></div>`
+                ? `<div class="row"><span>${esc(t("الباقي", "Change due"))}</span><span>${money(inv.changeGiven)} ج</span></div>`
                 : ""
             }
 
@@ -525,7 +526,7 @@ export function Sales() {
             <div class="sep"></div>
 
             <div class="center">
-              <p>{t("شكراً لتعاملكم معنا", "Thank you for your business")}</p>
+              <p>${esc(t("شكراً لتعاملكم معنا", "Thank you for your business"))}</p>
             </div>
 
             <script>
@@ -674,7 +675,8 @@ export function Sales() {
 
       {selected && (
         <Modal
-          title={`فاتورة: ${selected.invoiceNumber}`}
+          size="xl"
+          title={`${t("فاتورة", "Invoice")}: ${selected.invoiceNumber}`}
           onClose={() => setSelected(null)}
           footer={
             <>
@@ -697,16 +699,27 @@ export function Sales() {
 
 function InvoiceDetail({ id }) {
   const [inv, setInv] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    api
-      .get(`/invoices/${id}`)
-      .then(({ data }) => setInv(data))
-      .catch(() => toast.error("فشل التحميل"));
+    let active = true;
+    setLoading(true);
+    setError("");
+    setInv(null);
+    api.get(`/invoices/${id}`)
+      .then(({ data }) => { if (active) setInv(data); })
+      .catch((err) => { if (active) setError(err.response?.data?.error || "تعذر تحميل تفاصيل الفاتورة. تحقق من الاتصال وحاول مرة أخرى."); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [id]);
 
-  if (!inv) {
-    return <div className="text-center py-8 text-slate-400">جاري التحميل...</div>;
+  if (loading) {
+    return <div className="text-center py-12 text-slate-500"><div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" /><p>جاري تحميل تفاصيل الفاتورة...</p></div>;
+  }
+
+  if (error || !inv) {
+    return <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center space-y-3"><p className="font-semibold text-red-700">{error || "تعذر تحميل الفاتورة"}</p><button onClick={() => { setLoading(true); setError(""); api.get(`/invoices/${id}`).then(({ data }) => setInv(data)).catch((err) => setError(err.response?.data?.error || "تعذر تحميل تفاصيل الفاتورة")).finally(() => setLoading(false)); }} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-red-700 border border-red-200 hover:bg-red-100">إعادة المحاولة</button></div>;
   }
 
   return (
