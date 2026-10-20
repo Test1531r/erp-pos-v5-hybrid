@@ -47,6 +47,7 @@ export default function Layout() {
   const location = useLocation();
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [systemFeatures, setSystemFeatures] = useState({});
 
   const loadNotifications = async () => {
     try { const { data } = await api.get("/growth/notifications"); setNotifications(data || []); } catch {}
@@ -81,7 +82,7 @@ export default function Layout() {
     document.documentElement.dir = en ? "ltr" : "rtl";
   }, [en]);
 
-  const navItems = NAV.filter((item) => !item.roles || item.roles.includes(user?.role));
+  const FEATURE_BY_PATH = { "/dashboard":"dashboard", "/sync":"sync", "/pos":"pos", "/inventory":"inventory", "/stock-ledger":"stockLedger", "/purchases":"purchases", "/receivables":"receivables", "/approvals":"approvals", "/growth":"growth", "/closing":"closing", "/tools":"tools", "/stocktake":"stocktake", "/reports":"reports", "/settings":null, "/sales":"sales", "/customers":"customers", "/repairs":"repairs", "/transfers":"transfers", "/expenses":"expenses", "/finance":"finance", "/returns":"returns", "/users":"users", "/branches":"branches" };\n  const navItems = NAV.filter((item) => (!item.roles || item.roles.includes(user?.role)) && (FEATURE_BY_PATH[item.path] == null || systemFeatures[FEATURE_BY_PATH[item.path]] !== false));
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
@@ -118,7 +119,7 @@ export default function Layout() {
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-all duration-150 relative
                   ${active ? "bg-indigo-600 text-white" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}
               >
-                {active && <div className="absolute right-0 top-0 bottom-0 w-1 bg-indigo-400 rounded-l-full" />}
+                {active && <div className={`absolute ${en ? "left-0 rounded-r-full" : "right-0 rounded-l-full"} top-0 bottom-0 w-1 bg-indigo-400`} />}
                 <Icon className={`w-5 h-5 shrink-0 ${active ? "text-white" : ""}`} />
                 {sidebarOpen && <span className="font-medium">{t(item.label, ({ "لوحة التحكم":"Dashboard", "مركز المزامنة":"Sync Center", "نقطة البيع":"Point of Sale", "المخزون":"Inventory", "حركة المخزون":"Stock Ledger", "المشتريات والموردين":"Purchases & Suppliers", "الآجل والأقساط":"Receivables & Installments", "الموافقات":"Approvals", "العروض و Trade-In":"Promotions & Trade-In", "الإقفال اليومي":"Daily Closing", "الباركود والاستيراد":"Barcode & Import", "الجرد الدوري":"Stocktake", "تقارير الإدارة":"Management Reports", "الإعدادات":"Settings", "المبيعات":"Sales", "العملاء":"Customers", "الصيانة":"Repairs", "نقل المخزون":"Stock Transfers", "المصروفات":"Expenses", "المالية والمحافظ":"Finance & Wallets", "المرتجعات":"Returns", "المستخدمين":"Users", "الفروع":"Branches" })[item.label] || item.label)}</span>}
               </button>
