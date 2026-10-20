@@ -2,10 +2,6 @@ import { Router } from "express";
 import { prisma } from "../index.js";
 import { authenticate, authorize, requireBranch } from "../middleware/auth.js";
 import { audit } from "../utils/audit.js";
-import { Router } from "express";
-import { prisma } from "../index.js";
-import { authenticate, authorize, requireBranch } from "../middleware/auth.js";
-import { audit } from "../utils/audit.js";
 
 const router = Router();
 router.use(authenticate, requireBranch);
