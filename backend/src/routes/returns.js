@@ -44,6 +44,14 @@ router.post("/", async (req, res) => {
   try {
     if (!Array.isArray(req.body.items) || !req.body.items.length) return res.status(400).json({ error: "اختر صنفاً واحداً على الأقل للمرتجع" });
     const invoiceId = req.body.invoiceId;
+    const requestedItemIds = req.body.items.map((item) => String(item?.invoiceItemId || ""));
+    if (requestedItemIds.some((id) => !id) || new Set(requestedItemIds).size !== requestedItemIds.length) {
+      return res.status(400).json({ error: "لا تكرر صنف الفاتورة في نفس المرتجع" });
+    }
+    const requestedImeis = req.body.items.flatMap((item) => Array.isArray(item?.imeiNumbers) ? item.imeiNumbers.map((imei) => String(imei).trim()) : []);
+    if (requestedImeis.some((imei) => !imei) || new Set(requestedImeis).size !== requestedImeis.length) {
+      return res.status(400).json({ error: "أرقام IMEI مفقودة أو مكررة في طلب المرتجع" });
+    }
     const created = await prisma.$transaction(async (tx) => {
       const invoice = await tx.invoice.findFirst({ where: { id: invoiceId, branchId: req.branchId }, include: { items: true, returns: { where: { status: "COMPLETED" }, include: { items: true } }, paymentSplits: true } });
       if (!invoice) throw Object.assign(new Error("الفاتورة غير موجودة في هذا الفرع"), { status: 404 });
