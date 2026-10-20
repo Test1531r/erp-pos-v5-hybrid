@@ -65,7 +65,7 @@ export default function Reports() {
       [t("الفرع", "Branch"), t("كود الفرع", "Branch code"), t("المبيعات", "Sales"), t("المرتجعات", "Returns"), t("صافي المبيعات", "Net sales"), t("تكلفة البضاعة", "COGS"), t("المصروفات", "Expenses"), t("صافي الربح التقديري", "Estimated net profit"), t("عدد الفواتير", "Invoice count"), t("المشتريات", "Purchases"), t("المدفوع للموردين", "Paid to suppliers")],
       ...comparison.branches.map(row => [row.branchName, row.branchCode, row.revenue, row.returns, row.netSales, row.cogs, row.expenses, row.netProfit, row.invoiceCount, row.purchases, row.purchasePaid])
     ];
-    const csv = "\\uFEFF" + rows.map(row => row.map(cell).join(",")).join("\\r\\n");
+    const csv = "\uFEFF" + rows.map(row => row.map(cell).join(",")).join("\r\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
