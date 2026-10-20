@@ -119,16 +119,29 @@ router.get("/shifts/current", async (req, res) => {
 
 router.post("/shifts/open", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER", "ACCOUNTANT"), async (req, res) => {
   try {
-    const existing = await prisma.cashierShift.findFirst({ where: { branchId: req.branchId, userId: req.user.id, status: "OPEN" } });
-    if (existing) return res.status(409).json({ error: "لديك وردية مفتوحة بالفعل" });
-    await prisma.$transaction((tx) => ensureDefaultAccounts(tx, req.branchId));
-    let accountId = req.body.accountId;
-    if (!accountId) accountId = (await prisma.financialAccount.findFirst({ where: { branchId: req.branchId, type: "CASHBOX", isActive: true } }))?.id;
-    const openingBalance = money(req.body.openingBalance || 0, "رصيد بداية الوردية");
-    const shift = await prisma.cashierShift.create({ data: { branchId: req.branchId, userId: req.user.id, openingAccountId: accountId || null, openingBalance, openingNotes: req.body.notes || null } });
-    await audit(req.user, "SHIFT_OPEN", "CashierShift", shift.id, { openingBalance }, req.branchId);
-    res.status(201).json(shift);
-  } catch (err) { res.status(500).json({ error: "تعذر فتح الوردية" }); }
+    const openingBalance = money(req.body.openingBalance ?? 0, "رصيد بداية الوردية");
+    const result = await prisma.$transaction(async (tx) => {
+      const existing = await tx.cashierShift.findFirst({ where: { branchId: req.branchId, userId: req.user.id, status: "OPEN" } });
+      if (existing) throw Object.assign(new Error("لديك وردية مفتوحة بالفعل"), { status: 409 });
+      await ensureDefaultAccounts(tx, req.branchId);
+      let accountId = String(req.body.accountId || "");
+      if (!accountId) {
+        const defaultAccount = await tx.financialAccount.findFirst({ where: { branchId: req.branchId, type: "CASHBOX", isActive: true }, orderBy: { createdAt: "asc" } });
+        accountId = defaultAccount?.id || "";
+      }
+      if (!accountId) throw Object.assign(new Error("لا يوجد حساب خزنة فعال لهذا الفرع"), { status: 422 });
+      const account = await tx.financialAccount.findFirst({ where: { id: accountId, branchId: req.branchId, isActive: true, type: "CASHBOX" } });
+      if (!account) throw Object.assign(new Error("اختر حساب خزنة نقدية فعالاً من نفس الفرع"), { status: 422 });
+      return tx.cashierShift.create({ data: { branchId: req.branchId, userId: req.user.id, openingAccountId: account.id, openingBalance, openingNotes: req.body.notes ? String(req.body.notes).slice(0, 1000) : null } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await audit(req.user, "SHIFT_OPEN", "CashierShift", result.id, { openingBalance: String(openingBalance), accountId: result.openingAccountId }, req.branchId);
+    return res.status(201).json(result);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.code === "P2034") return res.status(409).json({ error: "وردية أخرى قيد الفتح. حدّث الصفحة وتحقق من حالة الوردية." });
+    console.error("[Shift open]", { branchId: req.branchId, userId: req.user?.id, code: err.code, message: err.message });
+    return res.status(500).json({ error: "تعذر فتح الوردية" });
+  }
 });
 
 router.post("/shifts/:id/close", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER", "ACCOUNTANT"), async (req, res) => {
@@ -137,16 +150,26 @@ router.post("/shifts/:id/close", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "CAS
     if (!shift) return res.status(404).json({ error: "الوردية المفتوحة غير موجودة" });
     if (req.user.role === "CASHIER" && shift.userId !== req.user.id) return res.status(403).json({ error: "لا يمكنك إغلاق وردية مستخدم آخر" });
     const accountId = req.body.accountId || shift.openingAccountId;
-    const account = accountId ? await prisma.financialAccount.findFirst({ where: { id: accountId, branchId: req.branchId } }) : null;
-    const shiftMovements = accountId ? await prisma.financialTransaction.findMany({ where: { branchId: req.branchId, accountId, userId: shift.userId, createdAt: { gte: shift.openedAt }, isReversed: false }, select: { amount: true, direction: true } }) : [];
-    const movementNet = shiftMovements.reduce((sum, m) => sum + (m.direction === "IN" ? Number(m.amount) : -Number(m.amount)), 0);
-    const expected = Number(shift.openingBalance) + movementNet;
+    const account = accountId ? await prisma.financialAccount.findFirst({ where: { id: accountId, branchId: req.branchId, isActive: true, type: "CASHBOX" } }) : null;
+    if (!account) return res.status(422).json({ error: "حساب الخزنة غير موجود أو غير فعال" });
     const actual = money(req.body.actualBalance, "الرصيد الفعلي");
-    const variance = actual - expected;
-    const closed = await prisma.cashierShift.update({ where: { id: shift.id }, data: { status: "CLOSED", closingAccountId: accountId || null, expectedBalance: expected, actualBalance: actual, variance, closedAt: new Date(), closingNotes: req.body.notes || null } });
-    await audit(req.user, "SHIFT_CLOSE", "CashierShift", shift.id, { expected, actual, variance }, req.branchId);
-    res.json(closed);
-  } catch (err) { res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر إغلاق الوردية" }); }
+    const closed = await prisma.$transaction(async (tx) => {
+      const current = await tx.cashierShift.findFirst({ where: { id: shift.id, branchId: req.branchId, status: "OPEN" } });
+      if (!current) throw Object.assign(new Error("تم إغلاق الوردية بالفعل"), { status: 409 });
+      const movements = await tx.financialTransaction.findMany({ where: { branchId: req.branchId, accountId: account.id, userId: current.userId, createdAt: { gte: current.openedAt, lte: new Date() }, isReversed: false }, select: { amount: true, direction: true } });
+      const movementNet = movements.reduce((sum, item) => sum + (item.direction === "IN" ? Number(item.amount) : -Number(item.amount)), 0);
+      const expected = Number(current.openingBalance) + movementNet;
+      const variance = actual - expected;
+      return tx.cashierShift.update({ where: { id: current.id }, data: { status: "CLOSED", closingAccountId: account.id, expectedBalance: expected, actualBalance: actual, variance, closedAt: new Date(), closingNotes: req.body.notes ? String(req.body.notes).slice(0, 1000) : null } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    await audit(req.user, "SHIFT_CLOSE", "CashierShift", shift.id, { expected: String(closed.expectedBalance), actual: String(closed.actualBalance), variance: String(closed.variance) }, req.branchId);
+    return res.json(closed);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    if (err.code === "P2034") return res.status(409).json({ error: "تغيرت بيانات الوردية أثناء الإغلاق. حدّث الصفحة وحاول مرة أخرى." });
+    console.error("[Shift close]", { branchId: req.branchId, userId: req.user?.id, shiftId: req.params.id, code: err.code, message: err.message });
+    return res.status(500).json({ error: "تعذر إغلاق الوردية" });
+  }
 });
 
 router.get("/shifts", authorize(...financeRoles), async (req, res) => {

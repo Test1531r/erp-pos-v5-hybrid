@@ -59,6 +59,7 @@ export function Inventory() {
   const [form, setForm] = useState({});
   const [adjustForm, setAdjustForm] = useState({ type: "ADD", quantity: 1, reason: "" });
   const [imeiList, setImeiList] = useState([{ imei: "", color: "", storage: "" }]);
+  const [stockFilter, setStockFilter] = useState("all");
 
   const load = async () => {
     setLoading(true);
@@ -70,6 +71,18 @@ export function Inventory() {
   };
 
   useEffect(() => { load(); fetchCategories(); }, [search, activeBranch?.id]);
+  const inventorySummary = products.reduce((summary, product) => {
+    const quantity = product.inventory?.[0]?.quantity ?? 0;
+    if (product.isActive !== false && quantity <= Number(product.lowStockQty ?? 5)) {
+      summary.lowStock += 1;
+      if (quantity === 0) summary.outOfStock += 1;
+    }
+    return summary;
+  }, { lowStock: 0, outOfStock: 0 });
+  const visibleProducts = products.filter((product) => {
+    const quantity = product.inventory?.[0]?.quantity ?? 0;
+    return stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
+  });
 
   const openAdd = () => { setForm({ salePrice: 0, costPrice: 0, lowStockQty: 5, hasIMEI: false, isActive: true }); setModal("add"); };
   const openEdit = (p) => { setSelected(p); setForm({ ...p }); setModal("edit"); };
@@ -108,9 +121,24 @@ export function Inventory() {
 
   return (
     <div className="p-6" dir={en ? "ltr" : "rtl"}>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المخزون", "Inventory Management")}</h2>
-        <Btn onClick={openAdd}><Plus className="w-4 h-4" /> منتج جديد</Btn>
+        <Btn onClick={openAdd}><Plus className="w-4 h-4" /> {t("منتج جديد", "New product")}</Btn>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+        <button onClick={() => setStockFilter("all")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "all" ? "border-indigo-300 bg-indigo-50 ring-1 ring-indigo-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+          <p className="text-sm text-slate-500">{t("المنتجات المعروضة", "Products loaded")}</p>
+          <p className="mt-1 text-2xl font-extrabold text-slate-800">{products.length}</p>
+        </button>
+        <button onClick={() => setStockFilter("low")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "low" ? "border-amber-300 bg-amber-50 ring-1 ring-amber-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
+          <p className="flex items-center gap-2 text-sm text-amber-700"><AlertTriangle className="h-4 w-4" />{t("مخزون منخفض", "Low stock")}</p>
+          <p className="mt-1 text-2xl font-extrabold text-amber-700">{inventorySummary.lowStock}</p>
+          <p className="mt-1 text-xs text-slate-500">{t("اضغط لعرض المنتجات التي تحتاج مراجعة", "Select to filter items needing review")}</p>
+        </button>
+        <button onClick={() => setStockFilter("out")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "out" ? "border-rose-300 bg-rose-100 ring-1 ring-rose-100" : "border-rose-200 bg-rose-50 hover:bg-rose-100"}`}>
+          <p className="text-sm text-rose-700">{t("نفد المخزون", "Out of stock")}</p>
+          <p className="mt-1 text-2xl font-extrabold text-rose-700">{inventorySummary.outOfStock}</p>
+        </button>
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
@@ -137,7 +165,7 @@ export function Inventory() {
               </tr>
             </thead>
             <tbody>
-              {products.map((p) => {
+              {visibleProducts.map((p) => {
                 const qty = p.inventory?.[0]?.quantity ?? 0;
                 const lowStock = qty <= p.lowStockQty;
                 return (
