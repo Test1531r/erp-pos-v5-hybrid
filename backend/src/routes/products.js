@@ -19,8 +19,8 @@ router.get("/", async (req, res) => {
     if (view === "management") {
       where.parentProductId = null;
     } else {
-      // Parents with active variants are group headers, not sellable SKU rows.
-      andFilters.push({ OR: [{ parentProductId: { not: null } }, { variants: { none: { isActive: true } } }] });
+      // A parent is never a sellable SKU once it has variants, even if all variants are deactivated.
+      andFilters.push({ OR: [{ parentProductId: { not: null } }, { variants: { none: {} } }] });
     }
     if (andFilters.length) where.AND = andFilters;
     const inventoryInclude = effectiveBranchId ? { where: { branchId: effectiveBranchId } } : true;
