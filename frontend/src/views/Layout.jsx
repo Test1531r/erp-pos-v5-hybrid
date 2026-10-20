@@ -84,6 +84,10 @@ export default function Layout() {
 
   const FEATURE_BY_PATH = { "/dashboard":"dashboard", "/sync":"sync", "/pos":"pos", "/inventory":"inventory", "/stock-ledger":"stockLedger", "/purchases":"purchases", "/receivables":"receivables", "/approvals":"approvals", "/growth":"growth", "/closing":"closing", "/tools":"tools", "/stocktake":"stocktake", "/reports":"reports", "/settings":null, "/sales":"sales", "/customers":"customers", "/repairs":"repairs", "/transfers":"transfers", "/expenses":"expenses", "/finance":"finance", "/returns":"returns", "/users":"users", "/branches":"branches" };
   const navItems = NAV.filter((item) => (!item.roles || item.roles.includes(user?.role)) && (FEATURE_BY_PATH[item.path] == null || systemFeatures[FEATURE_BY_PATH[item.path]] !== false));
+  useEffect(() => {
+    const feature = FEATURE_BY_PATH[location.pathname];
+    if (feature && systemFeatures[feature] === false) navigate("/settings", { replace: true });
+  }, [location.pathname, systemFeatures, navigate]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
