@@ -20,12 +20,12 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) =>
     const { name, username, email, password, role = "CASHIER", branchId } = req.body;
     if (!String(name || "").trim() || !String(username || "").trim()) return res.status(400).json({ error: "الاسم واسم المستخدم مطلوبان" });
     if (!validRoles.has(role)) return res.status(400).json({ error: "الدور الوظيفي غير صالح" });
-    if (req.body.maxDiscountPct !== undefined && (!Number.isFinite(Number(req.body.maxDiscountPct)) || Number(req.body.maxDiscountPct) < 0 || Number(req.body.maxDiscountPct) > 100)) return res.status(400).json({ error: "حد الخصم يجب أن يكون بين 0 و100" });
+    if (req.user.role === "SUPER_ADMIN" && req.body.maxDiscountPct !== undefined && (!Number.isFinite(Number(req.body.maxDiscountPct)) || Number(req.body.maxDiscountPct) < 0 || Number(req.body.maxDiscountPct) > 100)) return res.status(400).json({ error: "حد الخصم يجب أن يكون بين 0 و100" });
     if (branchId && !(await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }))) return res.status(400).json({ error: "الفرع المحدد غير موجود" });
     if (String(password || "").length < 10) return res.status(400).json({ error: "كلمة المرور يجب ألا تقل عن 10 أحرف" });
     if (req.user.role === "BRANCH_MANAGER" && !managerAllowedRoles.has(role)) return res.status(403).json({ error: "مدير الفرع لا يمكنه إنشاء هذا الدور" });
     const effectiveBranchId = req.user.role === "BRANCH_MANAGER" ? req.user.branchId : (branchId || null);
-    const user = await prisma.user.create({ data: { name: String(name).trim(), username: String(username).trim(), email: email || null, passwordHash: await bcrypt.hash(password, 12), role, branchId: effectiveBranchId, permissions: req.body.permissions || undefined, maxDiscountPct: req.body.maxDiscountPct !== undefined ? Number(req.body.maxDiscountPct) : 15 }, select: { id: true, name: true, username: true, role: true, branchId: true, isActive: true, permissions: true, maxDiscountPct: true } });
+    const user = await prisma.user.create({ data: { name: String(name).trim(), username: String(username).trim(), email: email || null, passwordHash: await bcrypt.hash(password, 12), role, branchId: effectiveBranchId, permissions: req.user.role === "SUPER_ADMIN" && req.body.permissions !== undefined ? req.body.permissions : undefined, maxDiscountPct: req.user.role === "SUPER_ADMIN" && req.body.maxDiscountPct !== undefined ? Number(req.body.maxDiscountPct) : 15 }, select: { id: true, name: true, username: true, role: true, branchId: true, isActive: true, permissions: true, maxDiscountPct: true } });
     await audit(req.user, "CREATE", "User", user.id, { username: user.username, role: user.role }, effectiveBranchId);
     res.status(201).json(user);
   } catch (err) { if (err.code === "P2002") return res.status(409).json({ error: "اسم المستخدم أو الإيميل موجود بالفعل" }); res.status(500).json({ error: "تعذر إنشاء المستخدم" }); }
@@ -43,7 +43,7 @@ router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) 
     const data = {};
     for (const key of ["name", "email", "isActive"]) if (req.body[key] !== undefined) data[key] = req.body[key];
     if (req.user.role === "SUPER_ADMIN") { if (req.body.role) data.role = req.body.role; if (req.body.branchId !== undefined) data.branchId = req.body.branchId || null; if (req.body.permissions !== undefined) data.permissions = req.body.permissions; }
-    if (req.body.maxDiscountPct !== undefined) data.maxDiscountPct = Math.max(0, Math.min(100, Number(req.body.maxDiscountPct) || 0));
+    if (req.user.role === "SUPER_ADMIN" && req.body.maxDiscountPct !== undefined) data.maxDiscountPct = Number(req.body.maxDiscountPct);
     if (req.body.password) { if (String(req.body.password).length < 10) return res.status(400).json({ error: "كلمة المرور يجب ألا تقل عن 10 أحرف" }); data.passwordHash = await bcrypt.hash(req.body.password, 12); }
     const user = await prisma.user.update({ where: { id: req.params.id }, data, select: { id: true, name: true, username: true, role: true, branchId: true, isActive: true, permissions: true, maxDiscountPct: true } });
     await audit(req.user, "UPDATE", "User", user.id, { role: user.role, isActive: user.isActive }, user.branchId);
