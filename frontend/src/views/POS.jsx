@@ -491,40 +491,53 @@ function CartItem({ item }) {
 }
 
 // ── PRODUCT CARD ────────────────────────────────────────────
-function ProductCard({ product, stock, onAdd }) {
-  const outOfStock = stock === 0;
-  const lowStock = stock > 0 && stock <= product.lowStockQty;
-  return (
-    <button
-      onClick={() => !outOfStock && onAdd(product)}
-      disabled={outOfStock}
-      className={`group relative flex flex-col rounded-2xl border text-right overflow-hidden transition-all duration-200
-        ${outOfStock ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200" : "bg-white border-slate-200 hover:border-indigo-400 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"}`}
-    >
-      {/* Image */}
-      <div className="relative w-full pt-[65%] bg-gradient-to-br from-slate-100 to-slate-200">
-        {product.imageUrl ? (
-          <img src={product.imageUrl} alt={product.name} className="absolute inset-0 w-full h-full object-contain p-2" onError={(e) => { e.target.style.display = "none"; }} />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center"><Package className="w-10 h-10 text-slate-400" /></div>
-        )}
-        {product.hasIMEI && <div className="absolute top-1.5 right-1.5 bg-blue-100 text-blue-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><ScanLine className="w-2.5 h-2.5" /> IMEI</div>}
-        {lowStock && <div className="absolute top-1.5 left-1.5 bg-amber-100 text-amber-700 text-[10px] font-medium px-1.5 py-0.5 rounded-full">منخفض</div>}
-        {outOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold text-red-600 bg-white px-2 py-1 rounded-lg">نفذ المخزون</span></div>}
-        {!outOfStock && <div className="absolute inset-0 bg-indigo-600/0 group-hover:bg-indigo-600/10 transition-colors flex items-center justify-center"><div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-lg transition-all"><Plus className="w-5 h-5" /></div></div>}
-      </div>
-      {/* Info */}
-      <div className="p-3 flex flex-col gap-1">
-        <p className="text-xs font-bold text-slate-800 leading-tight line-clamp-2">{product.name}</p>
-        {product.brand && <p className="text-[10px] text-slate-400">{product.brand}</p>}
-        <p className="text-[10px] text-slate-400 font-mono">{product.sku}</p>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-sm font-bold text-indigo-600">{parseFloat(product.salePrice).toLocaleString()} ج</span>
-          <span className={`text-[10px] font-semibold ${outOfStock ? "text-red-500" : lowStock ? "text-amber-600" : "text-green-600"}`}>كمية: {stock}</span>
-        </div>
-      </div>
-    </button>
-  );
+function ProductCard({ product, stock, onAdd, t }) {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const hasVariants = variants.length > 0;
+  const outOfStock = stock <= 0;
+  const lowStock = stock > 0 && stock <= Number(product.lowStockQty ?? 5);
+  const prices = hasVariants ? variants.map(v => Number(v.salePrice || 0)) : [Number(product.salePrice || 0)];
+  const minPrice = Math.min(...prices), maxPrice = Math.max(...prices);
+  return <button onClick={() => !outOfStock && onAdd(product)} disabled={outOfStock} className={`group relative flex flex-col rounded-2xl border text-right overflow-hidden transition-all ${outOfStock ? "opacity-60 cursor-not-allowed bg-slate-50 border-slate-200" : "bg-white border-slate-200 hover:border-indigo-400 hover:shadow-lg hover:-translate-y-0.5"}`}>
+    <div className="relative w-full pt-[65%] bg-gradient-to-br from-slate-100 to-slate-200">
+      {product.imageUrl ? <img src={product.imageUrl} alt={product.name} className="absolute inset-0 h-full w-full object-contain p-2" onError={e => { e.currentTarget.style.display = "none"; }} /> : <div className="absolute inset-0 flex items-center justify-center"><Package className="h-10 w-10 text-slate-400" /></div>}
+      {hasVariants && <span className="absolute right-2 top-2 rounded-full bg-violet-100 px-2 py-1 text-[10px] font-bold text-violet-700">{variants.length} {t("متغيرات", "variants")}</span>}
+      {!hasVariants && product.hasIMEI && <span className="absolute right-2 top-2 rounded-full bg-blue-100 px-2 py-1 text-[10px] font-bold text-blue-700">IMEI</span>}
+      {lowStock && <span className="absolute left-2 top-2 rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">{t("مخزون منخفض", "Low stock")}</span>}
+      {outOfStock && <div className="absolute inset-0 flex items-center justify-center bg-white/60"><span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-red-600">{t("نفد المخزون", "Out of stock")}</span></div>}
+    </div>
+    <div className="flex flex-col gap-1 p-3">
+      <p className="line-clamp-2 text-xs font-bold leading-tight text-slate-800">{product.name}</p>
+      {product.brand && <p className="text-[10px] text-slate-400">{product.brand}</p>}
+      <p className="font-mono text-[10px] text-slate-400">{hasVariants ? t("اختيار اللون / السعة / المواصفات", "Choose color / storage / specs") : product.sku}</p>
+      <div className="mt-1 flex items-center justify-between gap-2"><span className="text-sm font-bold text-indigo-600">{minPrice === maxPrice ? minPrice.toLocaleString() : minPrice.toLocaleString() + " – " + maxPrice.toLocaleString()} {t("ج.م", "EGP")}</span><span className={`whitespace-nowrap text-[10px] font-semibold ${outOfStock ? "text-red-500" : lowStock ? "text-amber-600" : "text-green-600"}`}>{t("كمية", "Stock")}: {stock}</span></div>
+      {hasVariants && !outOfStock && <p className="mt-1 text-[10px] font-semibold text-indigo-600">{t("اضغط لاختيار المتغير", "Tap to choose a variant")}</p>}
+    </div>
+  </button>;
+}
+
+function VariantPickerModal({ product, getStock, onChoose, onClose, t }) {
+  if (!product) return null;
+  const variants = product.variants || [];
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/65 p-3 backdrop-blur-sm" onClick={onClose} dir="rtl">
+    <section className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+      <header className="flex items-start justify-between gap-4 border-b p-5">
+        <div><h3 className="text-lg font-extrabold text-slate-900">{product.name}</h3><p className="mt-1 text-sm text-slate-500">{t("اختار اللون أو السعة أو المواصفات المطلوبة", "Choose color, storage or specifications")}</p></div>
+        <button onClick={onClose} className="rounded-xl p-2 text-slate-400 hover:bg-slate-100"><X className="h-5 w-5" /></button>
+      </header>
+      <div className="overflow-y-auto p-4 sm:p-6"><div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {variants.map(variant => {
+          const stock = getStock(variant.id), unavailable = stock <= 0;
+          return <button key={variant.id} disabled={unavailable} onClick={() => onChoose(variant)} className={`flex items-center gap-3 rounded-2xl border p-3 text-right ${unavailable ? "cursor-not-allowed bg-slate-50 opacity-50" : "hover:border-indigo-400 hover:bg-indigo-50/50"}`}>
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-50">{(variant.imageUrl || product.imageUrl) ? <img src={variant.imageUrl || product.imageUrl} alt={variant.variantLabel || variant.name} className="h-full w-full object-contain p-1" /> : <Package className="h-7 w-7 text-slate-300" />}</div>
+            <div className="min-w-0 flex-1"><p className="font-bold text-slate-800">{variant.variantLabel || variant.name}</p><p className="mt-1 truncate font-mono text-[11px] text-slate-400">{variant.sku}{variant.barcode ? " · " + variant.barcode : ""}</p><div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-sm font-extrabold text-indigo-700">{Number(variant.salePrice || 0).toLocaleString()} {t("ج.م", "EGP")}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${unavailable ? "bg-rose-100 text-rose-700" : stock <= Number(variant.lowStockQty ?? 5) ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}>{unavailable ? t("غير متاح", "Unavailable") : t("المتاح", "Available") + ": " + stock}</span>{variant.hasIMEI && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700">IMEI</span>}</div></div>
+            {!unavailable && <Plus className="h-5 w-5 shrink-0 text-indigo-600" />}
+          </button>;
+        })}
+      </div></div>
+      <footer className="flex items-center justify-between gap-3 border-t bg-slate-50 px-5 py-3 text-xs text-slate-500"><span>{t("السعر والمخزون والباركود مرتبطون بالمتغير المحدد", "Price, stock and barcode belong to the selected variant")}</span><button onClick={onClose} className="rounded-xl border bg-white px-4 py-2 font-semibold">{t("إلغاء", "Cancel")}</button></footer>
+    </section>
+  </div>;
 }
 
 // ── MAIN POS ────────────────────────────────────────────────
@@ -537,9 +550,38 @@ export default function POS() {
 
   const [customerModal, setCustomerModal] = useState(false);
   const [checkoutModal, setCheckoutModal] = useState(false);
+  const [variantGroup, setVariantGroup] = useState(null);
   const searchRef = useRef(null);
   const totals = getCartTotals();
   const filteredProducts = getFilteredProducts();
+  const displayProducts = (() => {
+    const singles = filteredProducts.filter(p => !p.parentProductId);
+    const grouped = new Map();
+    filteredProducts.filter(p => p.parentProductId).forEach(variant => {
+      const id = variant.parentProductId;
+      if (!grouped.has(id)) grouped.set(id, { id, name: variant.parentProduct?.name || variant.name.split(" - ")[0], brand: variant.brand || "", categoryId: variant.categoryId, category: variant.category, imageUrl: variant.imageUrl || null, lowStockQty: Number(variant.lowStockQty ?? 5), variants: [] });
+      const group = grouped.get(id);
+      group.variants.push(variant);
+      if (!group.imageUrl && variant.imageUrl) group.imageUrl = variant.imageUrl;
+      group.lowStockQty = Math.min(Number(group.lowStockQty ?? 5), Number(variant.lowStockQty ?? 5));
+    });
+    const result = [...singles, ...grouped.values()];
+    for (const group of grouped.values()) {
+      group.sku = group.variants[0]?.sku || "";
+      group.hasIMEI = group.variants.some(v => v.hasIMEI);
+      const prices = group.variants.map(v => Number(v.salePrice || 0));
+      group.salePrice = prices.length ? Math.min(...prices) : 0;
+    }
+    const stockFor = p => p.variants?.length ? p.variants.reduce((sum, v) => sum + getStock(v.id), 0) : getStock(p.id);
+    return result.sort((a,b) => {
+      const sa=stockFor(a), sb=stockFor(b);
+      if (sa===0 && sb>0) return 1;
+      if (sb===0 && sa>0) return -1;
+      return a.name.localeCompare(b.name);
+    });
+  })();
+  const handleProductSelection = product => product.variants?.length ? setVariantGroup(product) : addToCart(product);
+  const handleVariantSelection = variant => { addToCart(variant); setVariantGroup(null); };
   const itemCount = cartItems.reduce((s, i) => s + i.quantity, 0);
 
   // F2 = focus search, F9 = checkout
@@ -582,11 +624,11 @@ export default function POS() {
         </div>
 
         {/* Count */}
-        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{filteredProducts.length} {t("منتج", "products")}</div>
+        <div className="px-4 py-2 text-xs text-slate-400 shrink-0">{displayProducts.length} {t("منتج", "products")}</div>
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto p-3">
-          {filteredProducts.length === 0 ? (
+          {displayProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
               <Package className="w-16 h-16 mb-3 opacity-20" />
               <p className="text-lg font-medium">{t("لا توجد منتجات", "No products found")}</p>
@@ -594,7 +636,7 @@ export default function POS() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-3">
-              {filteredProducts.map((p) => <ProductCard key={p.id} product={p} stock={getStock(p.id)} onAdd={addToCart} />)}
+              {displayProducts.map(p => <ProductCard key={p.id} product={p} stock={p.variants?.length ? p.variants.reduce((sum, v) => sum + getStock(v.id), 0) : getStock(p.id)} onAdd={handleProductSelection} t={t} />)}
             </div>
           )}
         </div>
@@ -678,6 +720,7 @@ export default function POS() {
       </div>
 
       {/* Modals */}
+      {variantGroup && <VariantPickerModal product={variantGroup} getStock={getStock} onChoose={handleVariantSelection} onClose={() => setVariantGroup(null)} t={t} />}
       {customerModal && <CustomerModal onClose={() => setCustomerModal(false)} onSelect={(c) => { setCustomer(c); setCustomerModal(false); }} />}
       {checkoutModal && <CheckoutModal onClose={() => setCheckoutModal(false)} />}
     </div>
