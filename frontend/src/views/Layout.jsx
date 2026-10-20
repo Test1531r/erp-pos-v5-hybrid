@@ -55,11 +55,12 @@ export default function Layout() {
 
   useEffect(() => {
     fetchBranches();
+    api.get("/settings/features").then(r => setSystemFeatures(r.data.features || {})).catch(() => {});
     fetchCategories();
     fetchProducts();
     fetchDashboard();
     loadNotifications();
-  }, [activeBranch?.id]);
+  }, [activeBranch?.id, user?.id]);
 
   useEffect(() => {
     const timer = setInterval(loadNotifications, 60000);
