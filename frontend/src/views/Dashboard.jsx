@@ -117,7 +117,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Sales */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-          <h3 className="font-bold text-slate-800 mb-4">{t(t("آخر المبيعات", "Recent sales"), "Recent sales")}</h3>
+          <h3 className="font-bold text-slate-800 mb-4">{t("آخر المبيعات", "Recent sales")}</h3>
           <div className="space-y-2">
             {(recentSales || []).map((inv) => (
               <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
