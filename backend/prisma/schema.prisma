@@ -861,6 +861,9 @@ model Promotion {
   type        PromotionType
   value       Decimal @db.Decimal(18,2)
   minTotal    Decimal @default(0) @db.Decimal(18,2)
+  maxTotal    Decimal? @db.Decimal(18,2)
+  maxDiscount Decimal? @db.Decimal(18,2)
+  minQuantity Int @default(1)
   startsAt    DateTime
   endsAt      DateTime
   isActive    Boolean @default(true)
