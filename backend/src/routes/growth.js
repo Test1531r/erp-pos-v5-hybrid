@@ -12,7 +12,7 @@ router.post("/promotions",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req,re
   const minTotal=money(req.body.minTotal||0,"الحد الأدنى");
   const maxTotal=req.body.maxTotal===""||req.body.maxTotal==null?null:money(req.body.maxTotal,"الحد الأقصى");
   const maxDiscount=req.body.maxDiscount===""||req.body.maxDiscount==null?null:money(req.body.maxDiscount,"أقصى خصم");
-  const minQuantity=Math.max(1,Math.floor(Number(req.body.minQuantity||1)));
+  const minQuantity=Number(req.body.minQuantity||1);
   const usageLimit=req.body.usageLimit===""||req.body.usageLimit==null?null:Number(req.body.usageLimit);
   const startsAt=new Date(req.body.startsAt), endsAt=new Date(req.body.endsAt);
   if(!name||!Number.isFinite(value)||value<=0||(type==="PERCENT"&&value>100)||!Number.isFinite(minTotal)||minTotal<0||(maxTotal!==null&&(!Number.isFinite(maxTotal)||maxTotal<minTotal))||(maxDiscount!==null&&(!Number.isFinite(maxDiscount)||maxDiscount<=0))||!Number.isInteger(minQuantity)||minQuantity<1||(usageLimit!==null&&(!Number.isInteger(usageLimit)||usageLimit<1))||!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime())||endsAt<=startsAt)return res.status(400).json({error:"راجع قيمة العرض والحدود والكمية وتواريخ البداية والنهاية"});
@@ -29,7 +29,7 @@ router.put("/promotions/:id",authorize("SUPER_ADMIN","BRANCH_MANAGER"),async(req
   const minTotal=money(req.body.minTotal??current.minTotal,"الحد الأدنى");
   const maxTotal=req.body.maxTotal===undefined?current.maxTotal:(req.body.maxTotal===""||req.body.maxTotal===null?null:money(req.body.maxTotal,"الحد الأقصى"));
   const maxDiscount=req.body.maxDiscount===undefined?current.maxDiscount:(req.body.maxDiscount===""||req.body.maxDiscount===null?null:money(req.body.maxDiscount,"أقصى خصم"));
-  const minQuantity=Math.max(1,Math.floor(Number(req.body.minQuantity??current.minQuantity)));
+  const minQuantity=Number(req.body.minQuantity??current.minQuantity);
   const usageLimit=req.body.usageLimit===undefined?current.usageLimit:(req.body.usageLimit===""||req.body.usageLimit===null?null:Number(req.body.usageLimit));
   const startsAt=new Date(req.body.startsAt??current.startsAt), endsAt=new Date(req.body.endsAt??current.endsAt);
   if(!name||!Number.isFinite(value)||value<=0||(type==="PERCENT"&&value>100)||minTotal<0||(maxTotal!==null&&(!Number.isFinite(maxTotal)||maxTotal<minTotal))||(maxDiscount!==null&&(!Number.isFinite(maxDiscount)||maxDiscount<=0))||!Number.isInteger(minQuantity)||minQuantity<1||(usageLimit!==null&&(!Number.isInteger(usageLimit)||usageLimit<1))||!Number.isFinite(startsAt.getTime())||!Number.isFinite(endsAt.getTime())||endsAt<=startsAt)return res.status(400).json({error:"راجع إعدادات العرض"});

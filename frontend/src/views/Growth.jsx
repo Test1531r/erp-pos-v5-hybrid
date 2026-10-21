@@ -3,6 +3,8 @@ import { api, useStore } from "../store/index.js";
 import { Gift, Smartphone, Star, Plus, PackageCheck, Pencil, Power, Search } from "lucide-react";
 import toast from "react-hot-toast";
 
+const toLocalDateTime = (value) => { const d = new Date(value); const pad = n => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
 export default function Growth() {
   const language = useStore((state) => state.language);
   const en = language === "en";
@@ -15,7 +17,7 @@ export default function Growth() {
   const [customers, setCustomers] = useState([]);
   const [loyalty, setLoyalty] = useState(null);
   const [loyaltyCustomerId, setLoyaltyCustomerId] = useState("");
-  const emptyPromo = () => ({ name: "", code: "", type: "PERCENT", value: "", minTotal: "0", maxTotal: "", maxDiscount: "", minQuantity: "1", usageLimit: "", startsAt: new Date().toISOString().slice(0,16), endsAt: "", productIds: [] });
+  const emptyPromo = () => ({ name: "", code: "", type: "PERCENT", value: "", minTotal: "0", maxTotal: "", maxDiscount: "", minQuantity: "1", usageLimit: "", startsAt: toLocalDateTime(new Date()), endsAt: "", productIds: [] });
   const [p, setP] = useState(emptyPromo);
   const [editingPromo, setEditingPromo] = useState(null);
   const [promoSearch, setPromoSearch] = useState("");
@@ -43,7 +45,7 @@ export default function Growth() {
   };
   const editPromo = (x) => {
     setEditingPromo(x.id);
-    setP({ name:x.name||"", code:x.code||"", type:x.type||"PERCENT", value:String(x.value??""), minTotal:String(x.minTotal??0), maxTotal:x.maxTotal==null?"":String(x.maxTotal), maxDiscount:x.maxDiscount==null?"":String(x.maxDiscount), minQuantity:String(x.minQuantity??1), usageLimit:x.usageLimit==null?"":String(x.usageLimit), startsAt:new Date(x.startsAt).toISOString().slice(0,16), endsAt:new Date(x.endsAt).toISOString().slice(0,16), productIds:(x.products||[]).map(z=>z.productId) });
+    setP({ name:x.name||"", code:x.code||"", type:x.type||"PERCENT", value:String(x.value??""), minTotal:String(x.minTotal??0), maxTotal:x.maxTotal==null?"":String(x.maxTotal), maxDiscount:x.maxDiscount==null?"":String(x.maxDiscount), minQuantity:String(x.minQuantity??1), usageLimit:x.usageLimit==null?"":String(x.usageLimit), startsAt:toLocalDateTime(x.startsAt), endsAt:toLocalDateTime(x.endsAt), productIds:(x.products||[]).map(z=>z.productId) });
   };
   const togglePromo = async (x) => {
     try { await api.patch("/growth/promotions/"+x.id,{isActive:!x.isActive}); toast.success(x.isActive?"تم إيقاف العرض":"تم تفعيل العرض"); load(); }
@@ -97,6 +99,13 @@ export default function Growth() {
           <label className="text-sm font-semibold">حد مرات الاستخدام<input type="number" min="1" step="1" value={p.usageLimit} onChange={e=>setP({...p,usageLimit:e.target.value})} className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="غير محدود"/></label>
           <label className="text-sm font-semibold">بداية العرض *<input type="datetime-local" value={p.startsAt} onChange={e=>setP({...p,startsAt:e.target.value})} className="mt-1 w-full rounded-xl border p-3 font-normal"/></label>
           <label className="text-sm font-semibold">نهاية العرض *<input type="datetime-local" value={p.endsAt} onChange={e=>setP({...p,endsAt:e.target.value})} className="mt-1 w-full rounded-xl border p-3 font-normal"/></label>
+        </div>
+        <div className="rounded-2xl border border-slate-200 p-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><div><h3 className="font-bold">المنتجات المشمولة بالعرض</h3><p className="text-xs text-slate-500">اترك الاختيار فارغًا لتطبيق العرض على كل منتجات الفاتورة المؤهلة.</p></div><span className="text-xs font-semibold text-indigo-700">{p.productIds.length ? "تم اختيار " + p.productIds.length + " منتج" : "كل المنتجات"}</span></div>
+          <div className="mt-3 grid max-h-56 gap-2 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+            {products.filter(x=>x.isActive!==false).map(product=><label key={product.id} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-100 p-2 text-sm hover:bg-slate-50"><input type="checkbox" checked={p.productIds.includes(product.id)} onChange={e=>setP(old=>({...old,productIds:e.target.checked?[...old.productIds,product.id]:old.productIds.filter(id=>id!==product.id)}))}/><span className="min-w-0"><span className="block truncate font-semibold">{product.name}</span><span className="block truncate text-xs text-slate-500">{product.sku||product.id}</span></span></label>)}
+          </div>
+          {!products.length && <p className="mt-2 text-xs text-amber-700">قائمة المنتجات غير متاحة حاليًا؛ يمكنك إنشاء العرض دون تخصيص منتجات.</p>}
         </div>
         <div className="flex gap-2"><button onClick={savePromo} className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-bold text-white"><Plus className="h-4 w-4"/>{editingPromo?"حفظ التعديلات":"إنشاء العرض"}</button>{editingPromo&&<button onClick={()=>{setP(emptyPromo());setEditingPromo(null);}} className="rounded-xl border px-4 py-3">إلغاء</button>}</div>
       </section>
