@@ -233,7 +233,13 @@ router.post("/checkout", async (req, res) => {
         await tx.customer.update({ where: { id: customerId }, data: { totalSpent: { increment: total }, ...(earnedPoints > 0 ? { loyaltyPoints: { increment: earnedPoints } } : {}) } });
         if (earnedPoints > 0) await tx.loyaltyTransaction.create({ data: { customerId, userId: req.user.id, points: earnedPoints, type: "SALE_EARN", referenceType: "Invoice", referenceId: created.id, notes: invoiceNumber } });
       }
-      if (promotion) await tx.promotion.update({ where: { id: promotion.id }, data: { usedCount: { increment: 1 } } });
+      if (promotion) {
+        const usageUpdate = await tx.promotion.updateMany({
+          where: { id: promotion.id, ...(promotion.usageLimit ? { usedCount: { lt: promotion.usageLimit } } : {}) },
+          data: { usedCount: { increment: 1 } }
+        });
+        if (usageUpdate.count !== 1) throw Object.assign(new Error("تم الوصول للحد الأقصى لاستخدام العرض"), { status: 422 });
+      }
       if (paymentMethod === "CREDIT") {
         const dueDate = req.body.dueDate ? new Date(req.body.dueDate) : null;
         if (dueDate && Number.isNaN(dueDate.getTime())) throw Object.assign(new Error("تاريخ الاستحقاق غير صالح"), { status: 400 });
