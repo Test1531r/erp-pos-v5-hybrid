@@ -298,6 +298,12 @@ export function Inventory() {
             {visibleProducts.map(p => {
               const qty = quantityFor(p);
               const lowStock = qty <= Number(p.lowStockQty ?? 5);
+              const variantPrices = (p.variants || []).map(variant => Number(variant.salePrice || 0));
+              const priceLabel = variantPrices.length
+                ? (Math.min(...variantPrices) === Math.max(...variantPrices)
+                  ? Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })
+                  : Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }) + " – " + Math.max(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }))
+                : Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 });
               return <article key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
                 <div className="relative flex h-44 items-center justify-center bg-slate-50 p-3">
                   {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <div className="flex flex-col items-center gap-2 text-slate-300"><Package className="h-12 w-12" /><span className="text-xs">{t("لا توجد صورة", "No image")}</span></div>}
@@ -306,14 +312,40 @@ export function Inventory() {
                 </div>
                 <div className="space-y-3 p-4">
                   <div className="min-h-[56px]"><h3 className="line-clamp-2 font-bold text-slate-800">{p.name}</h3><p className="mt-1 text-xs text-slate-400">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku}</p></div>
-                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
+                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{priceLabel} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="max-w-[55%] truncate text-xs text-slate-500">{p.category?.name || t("بدون تصنيف", "Uncategorized")}</span><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button>{!p.variants?.length && <button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>}{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600 hover:bg-blue-50" title="IMEI">IMEI</button>}</div></div>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs font-semibold text-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button>
                     {p.variants?.length > 0 && <button onClick={() => toggleVariants(p.id)} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs">{t("المتغيرات", "Variants")} ({p.variants.length})</button>}
                     <button onClick={() => handleDeleteProduct(p)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold text-rose-600"><Trash2 className="h-3.5 w-3.5" />{t("حذف", "Delete")}</button>
                   </div>
-                  {expandedProducts[p.id] && p.variants?.length > 0 && <div className="space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3"><div className="text-xs font-bold text-indigo-800">{t("متغيرات المنتج", "Product variants")}</div>{p.variants.map(variant => <div key={variant.id} className="flex items-center gap-2 rounded-lg border bg-white p-2"><div className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-50">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.variantLabel || variant.name} className="h-full w-full object-contain" /> : <Package className="m-2 h-6 w-6 text-slate-300" />}</div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold">{variant.variantLabel || variant.name}</p><p className="text-[11px] text-slate-500">{variant.sku} · {t("المخزون", "Stock")}: {variant.inventory?.[0]?.quantity ?? 0}</p><p className="text-xs font-semibold text-indigo-700">{Number(variant.salePrice || 0).toLocaleString()} {t("ج.م", "EGP")}</p></div><button onClick={() => openAdjust(variant)} className="rounded-lg border p-2 text-indigo-600" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-3.5 w-3.5" /></button><button onClick={() => openEdit(variant)} className="rounded-lg border p-2 text-slate-600" title={t("تعديل", "Edit")}><Edit2 className="h-3.5 w-3.5" /></button><button onClick={() => handleDeleteProduct(variant)} className="rounded-lg p-2 text-rose-600" title={t("حذف", "Delete")}><Trash2 className="h-3.5 w-3.5" /></button></div>)}</div>}
+                  <>{expandedProducts[p.id] && p.variants?.length > 0 && <section className="mt-3 overflow-hidden rounded-2xl border border-indigo-100 bg-slate-50/80">
+  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-white px-4 py-3">
+    <div><h4 className="text-sm font-extrabold text-slate-800">{t("متغيرات المنتج", "Product variants")}</h4><p className="mt-1 text-xs text-slate-500">{t("كل متغير له باركود وسعر ومخزون مستقل", "Each variant has its own barcode, price and stock")}</p></div>
+    <div className="flex items-center gap-2"><span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{p.variants.length} {t("متغير", "variants")}</span><button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button></div>
+  </div>
+  <div className="space-y-2 p-3">
+    {p.variants.map(variant => {
+      const variantQty = Number(variant.inventory?.[0]?.quantity ?? 0);
+      const variantLow = variantQty <= Number(variant.lowStockQty ?? 5);
+      return <div key={variant.id} className="grid grid-cols-1 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.variantLabel || variant.name} className="h-full w-full object-contain p-1" /> : <Package className="h-6 w-6 text-slate-300" />}</div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-extrabold text-slate-800">{variant.variantLabel || variant.name}</p><span className={variant.isActive === false ? "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500" : "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"}>{variant.isActive === false ? t("معطل", "Inactive") : t("فعال", "Active")}</span>{variant.hasIMEI && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">IMEI</span>}</div>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>SKU: <b className="font-mono text-slate-700">{variant.sku || "—"}</b></span><span>{t("الباركود", "Barcode")}: <b className="font-mono text-slate-700">{variant.barcode || "—"}</b></span></div>
+            <div className="mt-2 flex flex-wrap items-center gap-3"><span className="text-sm font-extrabold text-indigo-700">{Number(variant.salePrice || 0).toLocaleString()} {t("ج.م", "EGP")}</span><span className="text-xs text-slate-500">{t("التكلفة", "Cost")}: {Number(variant.costPrice || 0).toLocaleString()}</span><span className={variantQty === 0 ? "rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700" : variantLow ? "rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700" : "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"}>{t("المخزون", "Stock")}: {variantQty}</span><span className="text-[11px] text-slate-400">{t("حد التنبيه", "Alert at")} {Number(variant.lowStockQty ?? 5)}</span></div>
+          </div>
+        </div>
+        <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:border-0 sm:pt-0">
+          <button onClick={() => openAdjust(variant)} className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-3.5 w-3.5" /><span>{t("المخزون", "Stock")}</span></button>
+          <button onClick={() => openEdit(variant)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button>
+          <button onClick={() => handleDeleteProduct(variant)} className="rounded-lg border border-rose-100 p-2 text-rose-600 hover:bg-rose-50" title={t("تعطيل المتغير", "Deactivate variant")}><Trash2 className="h-4 w-4" /></button>
+        </div>
+      </div>;
+    })}
+  </div>
+</section>}</>
                 </div>
               </article>;
             })}
@@ -404,14 +436,24 @@ export function Inventory() {
 
       {/* Add/Edit Modal */}
       {(modal === "add" || modal === "edit" || modal === "variantAdd") && (
-        <Modal title={modal === "add" ? t("إضافة منتج أساسي", "Add parent product") : modal === "variantAdd" ? t("إضافة متغير للمنتج", "Add product variant") : t("تعديل المنتج", "Edit product")} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
-          <div className="space-y-3">
+        <Modal size={modal === "variantAdd" ? "xl" : "lg"} title={modal === "add" ? t("إضافة منتج أساسي", "Add parent product") : modal === "variantAdd" ? t("إضافة متغير للمنتج", "Add product variant") : t("تعديل المنتج", "Edit product")} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
+          <div className="space-y-4">
+            {modal === "variantAdd" && <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-l from-indigo-50 to-white p-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700"><Layers3 className="h-6 w-6" /></div>
+              <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-indigo-600">{t("المنتج الأساسي", "Parent product")}</p><p className="truncate text-base font-extrabold text-slate-900">{selected?.name || form.name}</p><p className="mt-1 text-xs text-slate-500">{t("أدخل مواصفات هذا المتغير فقط؛ السعر والباركود والمخزون سيتم تتبعها بشكل مستقل.", "Enter this variant's details; price, barcode and stock are tracked independently.")}</p></div>
+              <span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 sm:inline-flex">{selected?.variants?.length || 0} {t("متغير حالي", "existing variants")}</span>
+            </div>}
             <Field label="اسم المنتج *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم المنتج" /></Field>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="SKU *"><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="SKU-001" /></Field>
               <Field label="باركود"><Input value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="1234567890" /></Field>
             </div>
-            {modal === "variantAdd" && <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3"><Field label={t("اللون / السعة / المواصفات *", "Color / storage / specification *")}><Input value={form.variantLabel || ""} onChange={e => setForm({ ...form, variantLabel: e.target.value })} placeholder={t("مثال: أسود · 256GB", "e.g. Black · 256GB")} /></Field><p className="mt-2 text-xs text-indigo-700">{t("سيكون لكل متغير SKU وسعر وتكلفة وصورة ومخزون مستقل.", "Each variant has its own SKU, price, cost, image and inventory.")}</p></div>}
+            {modal === "variantAdd" && <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
+              <div className="mb-3 flex items-center gap-2"><div className="rounded-lg bg-violet-100 p-2 text-violet-700"><Layers3 className="h-4 w-4" /></div><div><h4 className="text-sm font-extrabold text-violet-950">{t("مواصفات المتغير", "Variant specification")}</h4><p className="text-xs text-violet-700">{t("اكتب وصفًا واضحًا يظهر للكاشير عند البيع", "Use a clear label cashiers will see at checkout")}</p></div></div>
+              <Field label={t("اللون / السعة / المواصفات *", "Color / storage / specification *")}><Input value={form.variantLabel || ""} onChange={e => setForm({ ...form, variantLabel: e.target.value })} placeholder={t("مثال: تيتانيوم طبيعي · 256GB", "e.g. Natural Titanium · 256GB")} /></Field>
+              <div className="mt-3 flex flex-wrap gap-2">{["أسود","أبيض","أزرق","أخضر","128GB","256GB","512GB"].map(value => <button key={value} type="button" onClick={() => setForm(current => ({ ...current, variantLabel: current.variantLabel ? current.variantLabel + " · " + value : value }))} className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 hover:border-violet-400 hover:bg-violet-100">{value}</button>)}</div>
+              <p className="mt-3 text-xs leading-5 text-violet-700">{t("استخدم الاختصارات ثم عدّل النص. كل نسخة لها SKU وسعر وتكلفة وصورة وحد مخزون مستقل.", "Use a quick option then edit the label. Each variant has its own SKU, price, cost, image and low-stock threshold.")}</p>
+            </div>}
             <div className="grid grid-cols-2 gap-3">
               <Field label="سعر البيع"><Input type="number" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></Field>
               <Field label="سعر التكلفة"><Input type="number" value={form.costPrice || ""} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} /></Field>
