@@ -98,10 +98,15 @@ router.post("/checkout", async (req, res) => {
         if (!promotion || !promotion.isActive || promotion.startsAt > now || promotion.endsAt < now) throw Object.assign(new Error("كود العرض غير صالح أو منتهي"), { status: 422 });
         if (promotion.usageLimit && promotion.usedCount >= promotion.usageLimit) throw Object.assign(new Error("تم الوصول للحد الأقصى لاستخدام العرض"), { status: 422 });
         if (subtotal.lessThan(promotion.minTotal)) throw Object.assign(new Error(`الحد الأدنى للعرض ${decimal(promotion.minTotal).toFixed(2)}`), { status: 422 });
+        if (promotion.maxTotal != null && subtotal.greaterThan(promotion.maxTotal)) throw Object.assign(new Error(`الفاتورة تتجاوز الحد الأقصى للعرض ${decimal(promotion.maxTotal).toFixed(2)}`), { status: 422 });
         const eligibleIds = new Set(promotion.products.map(x => x.productId));
-        const eligible = eligibleIds.size ? lineItems.filter(x => eligibleIds.has(x.productId)).reduce((sum,x)=>sum.add(x.lineTotal), decimal(0)) : subtotal;
+        const eligibleItems = eligibleIds.size ? lineItems.filter(x => eligibleIds.has(x.productId)) : lineItems;
+        const eligible = eligibleItems.reduce((sum,x)=>sum.add(x.lineTotal), decimal(0));
+        const eligibleQuantity = eligibleItems.reduce((sum,x)=>sum+x.quantity,0);
+        if (eligibleQuantity < Number(promotion.minQuantity || 1)) throw Object.assign(new Error(`هذا العرض يتطلب ${Number(promotion.minQuantity || 1)} قطعة على الأقل`), { status: 422 });
         if (eligible.lessThanOrEqualTo(0)) throw Object.assign(new Error("لا توجد منتجات مؤهلة لهذا العرض"), { status: 422 });
         promoDiscount = promotion.type === "PERCENT" ? eligible.mul(promotion.value).div(100) : decimal(promotion.value);
+        if (promotion.maxDiscount != null && promoDiscount.greaterThan(promotion.maxDiscount)) promoDiscount = decimal(promotion.maxDiscount);
         if (promoDiscount.greaterThan(eligible)) promoDiscount = eligible;
       }
       const manualDiscount = decimal(extraDiscountN);
