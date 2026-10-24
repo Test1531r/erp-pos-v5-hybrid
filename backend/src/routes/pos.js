@@ -79,7 +79,7 @@ router.post("/checkout", async (req, res) => {
         const unitPrice = decimal(requestedPrice);
         const discountPctN = money(raw.discountPct || 0, "خصم الصنف");
         if (discountPctN > 100) throw Object.assign(new Error("نسبة خصم الصنف غير صالحة"), { status: 400 });
-        if (req.user.role === "CASHIER" && discountPctN > Number(req.user.maxDiscountPct || 0)) throw Object.assign(new Error(`الخصم على "${product.name}" يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
+        if (req.user.role === "CASHIER" && discountPctN > Number(req.user.maxDiscountPct || 0)) throw Object.assign(new Error(`خصم الصنف "${product.name}" (${discountPctN}%) يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%). لا يمكن طلب اعتماد خصم الصنف مباشرة؛ صفّر خصم الصنف ثم استخدم خانة "خصم الفاتورة" لطلب موافقة المدير.`), { status: 403 });
         if (req.user.role !== "SUPER_ADMIN" && branchSettings.requireApprovalDiscountAbove != null && discountPctN > Number(branchSettings.requireApprovalDiscountAbove)) throw Object.assign(new Error(`خصم الصنف "${product.name}" يتجاوز حد الموافقة (${Number(branchSettings.requireApprovalDiscountAbove)}%). استخدم خصم الفاتورة لطلب اعتماد المدير.`), { status: 403 });
         if (req.user.role === "CASHIER" && !unitPrice.equals(product.salePrice)) throw Object.assign(new Error(`لا تملك صلاحية تعديل سعر "${product.name}"`), { status: 403 });
         const discPct = decimal(discountPctN);
