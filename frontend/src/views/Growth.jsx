@@ -76,7 +76,7 @@ export default function Growth() {
     catch (e) { toast.error(e.response?.data?.error || "تعذر إدخال الجهاز للمخزون"); }
   };
 
-  return <div className="p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
+  return <div className="erp-pro-page erp-promotions-page p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
     <div><h1 className="text-2xl font-bold">{t("العروض والولاء و Trade-In", "Promotions, loyalty & trade-in")}</h1><p className="text-sm text-slate-500">{t("مركز نمو المبيعات وخدمة العملاء", "Sales growth and customer engagement center")}</p></div>
     <div className="flex gap-2 flex-wrap">
       <button onClick={() => setTab("promotions")} className={`px-4 py-2 rounded-xl ${tab === "promotions" ? "bg-indigo-600 text-white" : "bg-white border"}`}><Gift className="w-4 h-4 inline ml-1" />{t("العروض", "Promotions")}</button>
