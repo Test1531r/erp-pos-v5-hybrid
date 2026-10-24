@@ -98,7 +98,7 @@ router.post("/checkout", async (req, res) => {
         const cartSignature = lineItems.map(x => `${x.productId}:${x.quantity}:${decimal(x.unitPrice).toFixed(2)}:${decimal(x.discountPct).toFixed(2)}`).sort().join("|");
         const approvedAmount = Number(approval?.payload?.discountAmount);
         const approvedSubtotal = Number(approval?.payload?.subtotal);
-        if (!approval || Math.abs(approvedAmount - Number(itemDiscountTotal)) > 0.009 || Math.abs(approvedSubtotal - Number(subtotal)) > 0.009 || approval.payload?.cartSignature !== cartSignature) {
+        if (!approval || Math.abs(approvedAmount - Number(itemDiscountTotal.add(decimal(extraDiscountN)))) > 0.009 || Math.abs(approvedSubtotal - Number(subtotal)) > 0.009 || approval.payload?.cartSignature !== cartSignature) {
           throw Object.assign(new Error("موافقة المدير غير موجودة أو لا تطابق السلة الحالية. أعد إرسال طلب الموافقة."), { status: 403 });
         }
         req.approvedDiscountRequestId = approval.id;
@@ -139,7 +139,7 @@ router.post("/checkout", async (req, res) => {
         const approvedAmount=Number(approval.payload?.discountAmount);
         const approvedSubtotal=Number(approval.payload?.subtotal);
         const cartSignature=lineItems.map(x=>`${x.productId}:${x.quantity}:${decimal(x.unitPrice).toFixed(2)}:${decimal(x.discountPct).toFixed(2)}`).sort().join("|");
-        if(Math.abs(approvedAmount-Number(manualDiscount))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009||approval.payload?.cartSignature!==cartSignature)
+        if(Math.abs(approvedAmount-Number(manualDiscount.add(itemDiscountTotal)))>0.009||Math.abs(approvedSubtotal-Number(subtotal))>0.009||approval.payload?.cartSignature!==cartSignature)
           throw Object.assign(new Error("السلة أو مبلغ الخصم تغير بعد طلب الموافقة. اطلب موافقة جديدة"),{status:409});
         req.approvedDiscountRequestId=approval.id;
       }
