@@ -200,7 +200,7 @@ function CheckoutModal({ onClose }) {
   const discountPct = totals.subtotal > 0 ? (Number(cartDiscount || 0) / totals.subtotal) * 100 : 0;
   const itemDiscountTotal = cartItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0) * Number(item.discountPct || 0) / 100, 0);
   const approvalDiscountAmount = Number(cartDiscount || 0) + itemDiscountTotal;
-  const hasOverLimitItemDiscount = user?.role === "CASHIER" && cartItems.some(item => Number(item.discountPct || 0) > Number(user?.maxDiscountPct || 0));
+  const hasOverLimitItemDiscount = user?.role !== "SUPER_ADMIN" && cartItems.some(item => (user?.role === "CASHIER" && Number(item.discountPct || 0) > Number(user?.maxDiscountPct || 0)) || (branchDiscountLimit !== null && Number(item.discountPct || 0) > branchDiscountLimit));
   const needsDiscountApproval = user?.role !== "SUPER_ADMIN" && (hasOverLimitItemDiscount || (user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0)) || (branchDiscountLimit !== null && discountPct > branchDiscountLimit));
   const imeiVal = validateIMEIs();
 
