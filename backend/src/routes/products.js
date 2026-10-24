@@ -39,7 +39,7 @@ router.get("/", async (req, res) => {
     if (view === "management") {
       include.variants = { where: { isActive: true }, include: { inventory: inventoryInclude }, orderBy: { name: "asc" } };
     } else {
-      include.parentProduct = { select: { id: true, name: true } };
+      include.parentProduct = { select: { id: true, name: true, imageUrl: true } };
     }
     const [products, total] = await prisma.$transaction([
       prisma.product.findMany({ where, include, skip, take: limit, orderBy: { name: "asc" } }),
@@ -47,6 +47,7 @@ router.get("/", async (req, res) => {
     ]);
     const shaped = view === "management" ? products : products.map((p) => ({
       ...p,
+      imageUrl: p.imageUrl || p.parentProduct?.imageUrl || null,
       displayName: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
       name: p.parentProduct ? `${p.parentProduct.name} - ${p.variantLabel || p.name}` : p.name,
     }));
