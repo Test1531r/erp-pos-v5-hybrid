@@ -80,19 +80,18 @@ router.delete("/:id", authorize("SUPER_ADMIN"), async (req, res) => {
       const admins = await prisma.user.count({ where: { role: "SUPER_ADMIN", isActive: true } });
       if (admins <= 1) return res.status(400).json({ error: "لا يمكن حذف آخر مدير نظام نشط" });
     }
-    const [invoices, returns, repairs, expenses, transfers, movements, approvals, logs] = await Promise.all([
+    const [invoices, returns, repairs, expenses, transfers, movements, approvals] = await Promise.all([
       prisma.invoice.count({ where: { cashierId: targetId } }),
       prisma.saleReturn.count({ where: { userId: targetId } }),
       prisma.repairTicket.count({ where: { technicianId: targetId } }),
-      prisma.expense.count({ where: { createdById: targetId } }),
-      prisma.stockTransfer.count({ where: { createdById: targetId } }),
+      prisma.expense.count({ where: { userId: targetId } }),
+      prisma.stockTransfer.count({ where: { requestedById: targetId } }),
       prisma.stockMovement.count({ where: { userId: targetId } }),
-      prisma.approvalRequest.count({ where: { OR: [{ requesterId: targetId }, { decidedById: targetId }] } }),
-      prisma.auditLog.count({ where: { userId: targetId } }),
+      prisma.approvalRequest.count({ where: { OR: [{ requestedById: targetId }, { decidedById: targetId }] } }),
     ]);
-    const historyCount = invoices + returns + repairs + expenses + transfers + movements + approvals + logs;
-    if (historyCount > 0) return res.status(409).json({ error: "لا يمكن حذف هذا المستخدم نهائيًا لارتباط حسابه بسجلات تشغيلية أو مالية. عطّل الحساب بدلًا من ذلك للحفاظ على سجل المراجعة.", linkedRecords: { invoices, returns, repairs, expenses, transfers, movements, approvals, auditLogs: logs } });
-    await prisma.user.delete({ where: { id: targetId } });
+    const historyCount = invoices + returns + repairs + expenses + transfers + movements + approvals;
+    if (historyCount > 0) return res.status(409).json({ error: "لا يمكن حذف هذا المستخدم نهائيًا لارتباط حسابه بسجلات تشغيلية أو مالية. عطّل الحساب بدلًا من ذلك للحفاظ على سجل المراجعة.", linkedRecords: { invoices, returns, repairs, expenses, transfers, movements, approvals } });
+    await prisma.$transaction(async (tx) => { await tx.auditLog.updateMany({ where: { userId: targetId }, data: { userId: null } }); await tx.user.delete({ where: { id: targetId } }); });
     await audit(req.user, "DELETE", "User", targetId, { username: target.username, role: target.role }, target.branchId);
     return res.json({ success: true, message: "تم حذف المستخدم" });
   } catch (err) {
