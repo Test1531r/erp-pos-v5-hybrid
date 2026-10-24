@@ -91,7 +91,9 @@ export default function Layout() {
   useEffect(() => {
     const feature = FEATURE_BY_PATH[location.pathname];
     const pageKey = PAGE_KEY[location.pathname];
-    if (location.pathname === "/users" && user?.role !== "SUPER_ADMIN") navigate("/dashboard", { replace: true });\n    else if (user?.role !== "SUPER_ADMIN" && pageKey && user?.permissions?.pages?.[pageKey] === false) navigate("/dashboard", { replace: true });\n    else if ((feature && systemFeatures[feature] === false) || (location.pathname === "/sync" && systemFeatures.offlineMode === false)) navigate("/settings", { replace: true });
+    if (location.pathname === "/users" && user?.role !== "SUPER_ADMIN") navigate("/dashboard", { replace: true });
+    else if (user?.role !== "SUPER_ADMIN" && pageKey && user?.permissions?.pages?.[pageKey] === false) navigate("/dashboard", { replace: true });
+    else if ((feature && systemFeatures[feature] === false) || (location.pathname === "/sync" && systemFeatures.offlineMode === false)) navigate("/settings", { replace: true });
   }, [location.pathname, systemFeatures, navigate]);
 
   return (
