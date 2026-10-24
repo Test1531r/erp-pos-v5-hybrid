@@ -1377,6 +1377,30 @@ export function Users() {
           </tbody>
         </table>
       </div>
+      {summaryUser && (
+        <Modal title={t("ملخص الموظف", "Employee summary") + " — " + summaryUser.name} size="xl" onClose={() => setSummaryUser(null)} footer={<Btn variant="secondary" onClick={() => setSummaryUser(null)}>{t("إغلاق", "Close")}</Btn>}>
+          <div className="space-y-5">
+            <div className="rounded-2xl bg-gradient-to-l from-slate-900 to-indigo-900 p-5 text-white flex items-center gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center text-xl font-bold">{summaryUser.name?.slice(0,2)}</div>
+              <div className="flex-1"><h3 className="text-xl font-bold">{summaryUser.name}</h3><p className="text-sm text-white/70">{summaryUser.username} · {summaryUser.branch?.name || t("بدون فرع", "No branch")}</p><p className="text-sm mt-1">{ROLES[summaryUser.role] || summaryUser.role} · {summaryUser.isActive ? t("حساب نشط", "Active") : t("حساب معطل", "Inactive")}</p></div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {[
+                [t("عدد المبيعات", "Sales count"), summaryUser.salesCount || 0, "text-emerald-700", "bg-emerald-50"],
+                [t("قيمة المبيعات", "Sales value"), money(summaryUser.salesTotal) + " ج", "text-emerald-700", "bg-emerald-50"],
+                [t("عدد الاسترجاعات", "Returns count"), summaryUser.returnsCount || 0, "text-amber-700", "bg-amber-50"],
+                [t("قيمة الاسترجاعات", "Returns value"), money(summaryUser.returnsTotal) + " ج", "text-amber-700", "bg-amber-50"],
+                [t("صافي المبيعات", "Net sales"), money(summaryUser.netSales) + " ج", "text-indigo-700", "bg-indigo-50"],
+                [t("تذاكر الصيانة", "Repair tickets"), summaryUser.repairsCount || 0, "text-sky-700", "bg-sky-50"],
+                [t("المصروفات المسجلة", "Expenses recorded"), summaryUser.expensesCount || 0, "text-orange-700", "bg-orange-50"],
+                [t("قيمة المصروفات", "Expense value"), money(summaryUser.expensesTotal) + " ج", "text-orange-700", "bg-orange-50"],
+                [t("حد الخصم", "Discount limit"), Number(summaryUser.maxDiscountPct || 0) + "%", "text-violet-700", "bg-violet-50"],
+              ].map(([label,value,color,bg]) => <div key={label} className={"rounded-xl border border-slate-100 p-4 " + bg}><div className="text-sm text-slate-600">{label}</div><div className={"mt-2 text-xl font-bold " + color}>{value}</div></div>)}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-slate-600"><div className="rounded-xl border p-3">{t("تاريخ إنشاء الحساب", "Account created")}: <strong>{summaryUser.createdAt ? new Date(summaryUser.createdAt).toLocaleDateString(en ? "en-US" : "ar-EG") : "—"}</strong></div><div className="rounded-xl border p-3">{t("آخر دخول", "Last login")}: <strong>{summaryUser.lastLoginAt ? new Date(summaryUser.lastLoginAt).toLocaleString(en ? "en-US" : "ar-EG") : t("لم يدخل بعد", "Never logged in")}</strong></div></div>
+          </div>
+        </Modal>
+      )}
       {(modal === "add" || modal === "edit") && (
         <Modal title={modal === "add" ? "مستخدم جديد" : "تعديل المستخدم"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
