@@ -218,7 +218,7 @@ export function Inventory() {
   };
 
   return (
-    <div className="p-6" dir={en ? "ltr" : "rtl"}>
+    <div className="erp-pro-page erp-inventory-page p-6" dir={en ? "ltr" : "rtl"}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المخزون", "Inventory Management")}</h2>
         <Btn onClick={openAdd}><Plus className="w-4 h-4" /> {t("منتج جديد", "New product")}</Btn>
