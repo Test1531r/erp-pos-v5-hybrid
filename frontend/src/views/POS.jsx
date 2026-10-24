@@ -443,7 +443,7 @@ function CheckoutModal({ onClose }) {
         </div>
 
         <div className="p-5 border-t">
-          <button onClick={handleCheckout} disabled={!canCheckout || checkoutLoading || (needsDiscountApproval && discountApprovalStatus !== "APPROVED")} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-colors">
+          <button onClick={handleCheckout} disabled={!canCheckout || checkoutLoading || discountApprovalLoading || (needsDiscountApproval && Boolean(discountApprovalId) && discountApprovalStatus !== "APPROVED")} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-colors">
             {checkoutLoading ? <><Loader2 className="w-5 h-5 animate-spin" /> جاري المعالجة...</> : <><CheckCircle2 className="w-5 h-5" /> إتمام البيع — {totals.total.toFixed(2)} ج</>}
           </button>
         </div>
