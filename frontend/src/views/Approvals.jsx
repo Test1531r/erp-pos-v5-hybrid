@@ -65,7 +65,6 @@ export default function Approvals() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><ShieldCheck className="text-indigo-600" />{t("مركز الموافقات", "Approvals center")}</h1>
-          <p className="text-sm text-slate-500 mt-1">مراجعة الطلبات التي تتطلب اعتمادًا إداريًا وتوثيق سبب القرار.</p>
         </div>
         <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 disabled:opacity-50" aria-label="تحديث">
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
