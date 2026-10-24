@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3, Printer, FileText, TrendingUp, Wallet, Clock } from "lucide-react";
+import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3, Printer, FileText, TrendingUp, Wallet, Clock, Users } from "lucide-react";
 import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
