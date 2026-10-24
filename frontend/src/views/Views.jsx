@@ -865,73 +865,148 @@ export function Customers() {
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailTab, setDetailTab] = useState("overview");
   const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  const money = (v) => Number(v || 0).toLocaleString(en ? "en-US" : "ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const date = (v) => v ? new Date(v).toLocaleDateString(en ? "en-US" : "ar-EG") : "—";
 
   const load = async () => {
-    const { data } = await api.get(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`).catch(() => ({ data: [] }));
-    setCustomers(data);
+    try {
+      const { data } = await api.get(`/customers${search ? `?search=${encodeURIComponent(search)}` : ""}`);
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch { toast.error(t("تعذر تحميل العملاء", "Could not load customers")); }
   };
+  useEffect(() => { const timer = setTimeout(load, 180); return () => clearTimeout(timer); }, [search]);
 
-  useEffect(() => { load(); }, [search]);
+  const openDetails = async (customer) => {
+    setSelected(customer); setDetails(null); setDetailTab("overview"); setDetailsLoading(true);
+    try {
+      const { data } = await api.get(`/customers/${customer.id}/summary`);
+      setDetails(data);
+    } catch (err) {
+      toast.error(err.response?.data?.error || t("تعذر تحميل ملف العميل", "Could not load customer profile"));
+    } finally { setDetailsLoading(false); }
+  };
 
   const handleSave = async () => {
+    if (!String(form.name || "").trim()) return toast.error(t("اسم العميل مطلوب", "Customer name is required"));
+    setSaving(true);
     try {
-      if (modal === "add") await api.post("/customers", form);
-      else await api.put(`/customers/${selected.id}`, form);
-      toast.success("تم الحفظ"); setModal(null); load();
-    } catch (err) { toast.error(err.response?.data?.error || "فشل الحفظ"); }
+      const payload = { name: String(form.name).trim(), phone: form.phone || null, email: form.email || null, address: form.address || null, city: form.city || null, notes: form.notes || null };
+      if (modal === "add") await api.post("/customers", payload);
+      else await api.put(`/customers/${selected.id}`, payload);
+      toast.success(t("تم حفظ بيانات العميل", "Customer saved"));
+      setModal(null); await load();
+      if (modal === "edit" && selected) await openDetails({ ...selected, ...payload });
+    } catch (err) { toast.error(err.response?.data?.error || t("فشل الحفظ", "Save failed")); }
+    finally { setSaving(false); }
   };
 
+  const summary = details?.summary || {};
+  const customer = details?.customer || selected;
+  const Stat = ({ label, value, hint, color = "indigo" }) => (
+    <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm min-w-0">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className={`mt-2 text-xl font-black ${color === "green" ? "text-emerald-600" : color === "rose" ? "text-rose-600" : color === "amber" ? "text-amber-600" : "text-slate-900"} break-words`}>{value}</p>
+      {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+    </div>
+  );
+
   return (
-    <div className="p-6" dir={en ? "ltr" : "rtl"}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">{t("العملاء", "Customers")}</h2>
-        <Btn onClick={() => { setForm({}); setModal("add"); }}><Plus className="w-4 h-4" /> عميل جديد</Btn>
-      </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
-        <div className="p-4 border-b">
-          <div className="relative max-w-sm">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="بحث..." className="w-full bg-slate-50 border rounded-xl py-2 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
+    <div className="p-4 md:p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
+      <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold tracking-wider text-indigo-600 mb-1">{t("إدارة علاقات العملاء", "CUSTOMER RELATIONSHIP MANAGEMENT")}</p>
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900">{t("العملاء", "Customers")}</h1>
+          <p className="text-sm text-slate-500 mt-1">{t("ملفات العملاء والمشتريات والنقاط والآجل والصيانة في مكان واحد.", "Customer profiles, purchases, loyalty, credit and repairs in one place.")}</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-              <th className="px-4 py-3 font-semibold">{t("الاسم", "Name")}</th><th className="px-4 py-3 font-semibold">{t("الهاتف", "Phone")}</th><th className="px-4 py-3 font-semibold">{t("المدينة", "City")}</th><th className="px-4 py-3 font-semibold">{t("إجمالي الشراء", "Total purchases")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
-            </tr></thead>
-            <tbody>
-              {customers.map((c) => (
-                <tr key={c.id} className="border-b hover:bg-slate-50">
-                  <td className="px-4 py-3 font-semibold text-slate-800">{c.name}</td>
-                  <td className="px-4 py-3 text-slate-600 font-mono">{c.phone || "—"}</td>
-                  <td className="px-4 py-3 text-slate-600">{c.city || "—"}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">{parseFloat(c.totalSpent || 0).toLocaleString()} ج</td>
-                  <td className="px-4 py-3"><button onClick={() => { setSelected(c); setForm({ ...c }); setModal("edit"); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><Edit2 className="w-4 h-4" /></button></td>
-                </tr>
-              ))}
-              {customers.length === 0 && <tr><td colSpan={5} className="text-center py-12 text-slate-400">{t("لا يوجد عملاء", "No customers found")}</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        <Btn onClick={() => { setForm({}); setModal("add"); }}><Plus className="w-4 h-4" />{t("إضافة عميل", "Add customer")}</Btn>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Stat label={t("عدد العملاء المعروضين", "Customers shown")} value={customers.length} />
+        <Stat label={t("عملاء لديهم نقاط", "Customers with points")} value={customers.filter(c => Number(c.loyaltyPoints || 0) > 0).length} color="amber" />
+        <Stat label={t("إجمالي نقاط القائمة", "Points in list")} value={customers.reduce((n,c) => n + Number(c.loyaltyPoints || 0),0).toLocaleString()} color="amber" />
+        <Stat label={t("بحث سريع", "Quick search")} value={search ? t("نتائج البحث", "Filtered") : t("كل العملاء", "All customers")} hint={t("الاسم أو الهاتف أو البريد", "Name, phone or email")} />
       </div>
-      {modal && (
-        <Modal title={modal === "add" ? "عميل جديد" : "تعديل العميل"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
-          <div className="space-y-3">
-            <Field label="الاسم *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-            <Field label="رقم الهاتف"><Input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-            <Field label="البريد الإلكتروني"><Input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-            <Field label="العنوان"><Input value={form.address || ""} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
-            <Field label="المدينة"><Input value={form.city || ""} onChange={(e) => setForm({ ...form, city: e.target.value })} /></Field>
-            <Field label="ملاحظات"><Input value={form.notes || ""} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div className="relative flex-1 max-w-xl">
+            <Search className={`absolute ${en ? "left-3" : "right-3"} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("ابحث بالاسم أو رقم الهاتف أو البريد الإلكتروني...", "Search name, phone or email...")} className={`w-full bg-slate-50 border border-slate-200 rounded-xl py-3 ${en ? "pl-10 pr-3" : "pr-10 pl-3"} text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300`} />
           </div>
-        </Modal>
-      )}
+          <span className="text-xs text-slate-500">{customers.length} {t("عميل", "customers")}</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 p-3 md:p-4">
+          {customers.map(c => (
+            <button key={c.id} onClick={() => openDetails(c)} className="text-start rounded-2xl border border-slate-200 p-4 hover:border-indigo-300 hover:shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-200">
+              <div className="flex items-start gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-black text-lg shrink-0">{String(c.name || "?").trim().slice(0,1)}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2"><h3 className="font-bold text-slate-900 truncate">{c.name}</h3><span className="text-[10px] rounded-full bg-amber-50 text-amber-700 px-2 py-1 whitespace-nowrap">★ {Number(c.loyaltyPoints || 0).toLocaleString()}</span></div>
+                  <p className="text-xs text-slate-500 mt-1 font-mono" dir="ltr">{c.phone || "—"}</p>
+                  <p className="text-xs text-slate-400 mt-1 truncate">{c.email || c.city || t("لا توجد تفاصيل إضافية", "No extra details")}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-4">
+                <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{t("إجمالي الشراء المسجل", "Recorded purchases")}</p><p className="font-extrabold text-emerald-700 mt-1">{money(c.totalSpent)} {t("ج.م", "EGP")}</p></div>
+                <div className="rounded-xl bg-slate-50 p-3"><p className="text-[11px] text-slate-500">{t("حد الائتمان", "Credit limit")}</p><p className="font-extrabold text-slate-800 mt-1">{money(c.creditLimit)} {t("ج.م", "EGP")}</p></div>
+              </div>
+              <div className="flex justify-between items-center mt-3 text-xs text-indigo-600 font-bold"><span>{t("فتح الملف الكامل", "Open full profile")}</span><span>{en ? "→" : "←"}</span></div>
+            </button>
+          ))}
+          {!customers.length && <div className="col-span-full text-center py-14 text-slate-400"><Users className="w-8 h-8 mx-auto mb-2 opacity-40"/>{t("لا يوجد عملاء مطابقون للبحث", "No matching customers found")}</div>}
+        </div>
+      </section>
+
+      {modal && <Modal title={modal === "add" ? t("إضافة عميل جديد", "Add new customer") : t("تعديل بيانات العميل", "Edit customer")} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave} disabled={saving}>{saving ? t("جارٍ الحفظ...", "Saving...") : t("حفظ البيانات", "Save")}</Btn></>}>
+        <div className="space-y-3">
+          <Field label={t("اسم العميل *", "Customer name *")}><Input autoFocus value={form.name || ""} onChange={e => setForm({ ...form, name: e.target.value })}/></Field>
+          <Field label={t("رقم الهاتف", "Phone")}><Input dir="ltr" value={form.phone || ""} onChange={e => setForm({ ...form, phone: e.target.value })}/></Field>
+          <Field label={t("البريد الإلكتروني", "Email")}><Input type="email" dir="ltr" value={form.email || ""} onChange={e => setForm({ ...form, email: e.target.value })}/></Field>
+          <Field label={t("العنوان", "Address")}><Input value={form.address || ""} onChange={e => setForm({ ...form, address: e.target.value })}/></Field>
+          <Field label={t("المدينة", "City")}><Input value={form.city || ""} onChange={e => setForm({ ...form, city: e.target.value })}/></Field>
+          <Field label={t("ملاحظات داخلية", "Internal notes")}><Input value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })}/></Field>
+        </div>
+      </Modal>}
+
+      {selected && <Modal title={t("ملف العميل الكامل", "Customer 360 profile")} size="xl" onClose={() => { setSelected(null); setDetails(null); }} footer={<><Btn variant="secondary" onClick={() => { setSelected(null); setDetails(null); }}>{t("إغلاق", "Close")}</Btn><Btn onClick={() => { setForm({ name: customer?.name || "", phone: customer?.phone || "", email: customer?.email || "", address: customer?.address || "", city: customer?.city || "", notes: customer?.notes || "" }); setModal("edit"); }}>{t("تعديل بيانات العميل", "Edit customer")}</Btn></>}>
+        {detailsLoading ? <div className="py-16 text-center text-slate-500">{t("جارٍ تحميل ملف العميل...", "Loading customer profile...")}</div> : details ? <div className="space-y-4">
+          <div className="rounded-2xl bg-gradient-to-l from-indigo-700 to-slate-900 p-5 text-white">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"><div><p className="text-xs text-indigo-200">{t("ملف العميل", "CUSTOMER PROFILE")}</p><h2 className="text-2xl font-black mt-1">{customer?.name}</h2><p className="text-sm text-indigo-100 mt-2" dir="ltr">{customer?.phone || "—"} {customer?.email ? " · " + customer.email : ""}</p><p className="text-xs text-indigo-200 mt-1">{[customer?.city, customer?.address].filter(Boolean).join(" · ") || t("لا يوجد عنوان مسجل", "No address saved")}</p></div><div className="rounded-2xl bg-white/10 p-4 min-w-36"><p className="text-xs text-indigo-100">{t("نقاط الولاء الحالية", "Current loyalty points")}</p><p className="text-3xl font-black mt-1">★ {Number(summary.loyaltyPoints || customer?.loyaltyPoints || 0).toLocaleString()}</p><p className="text-xs text-indigo-100 mt-1">{t("مكتسبة", "Earned")} {Number(summary.loyaltyEarned || 0)} · {t("مستخدمة", "Redeemed")} {Number(summary.loyaltyRedeemed || 0)}</p></div></div>
+          </div>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <Stat label={t("عدد فواتير البيع", "Sales invoices")} value={summary.invoiceCount || 0} hint={t("عدد مرات الشراء", "Purchase visits")}/>
+            <Stat label={t("إجمالي المبيعات", "Gross purchases")} value={money(summary.grossPurchases)} color="green" hint={t("قبل خصم المرتجعات", "Before returns")}/>
+            <Stat label={t("صافي المشتريات", "Net purchases")} value={money(summary.netPurchases)} color="green" hint={t("بعد خصم المرتجعات المسجلة", "After recorded returns")}/>
+            <Stat label={t("المتبقي على العميل", "Outstanding credit")} value={money(summary.outstandingCredit)} color={Number(summary.outstandingCredit)>0?"rose":"green"} hint={t("الرصيد المفتوح من الآجل", "Open receivables")}/>
+            <Stat label={t("المدفوع وقت البيع", "Paid at sale")} value={money(summary.paidAtSale)}/>
+            <Stat label={t("إجمالي المرتجعات", "Returns total")} value={money(summary.returnedTotal)} color="rose"/>
+            <Stat label={t("عمليات الآجل", "Credit records")} value={summary.receivableCount || 0}/>
+            <Stat label={t("تذاكر الصيانة", "Repair tickets")} value={summary.repairCount || 0}/>
+          </div>
+          <div className="flex gap-2 overflow-x-auto border-b border-slate-200 pb-2">
+            {[["overview",t("نظرة عامة","Overview")],["purchases",t("المشتريات","Purchases")],["credit",t("الآجل والتحصيل","Credit & payments")],["loyalty",t("النقاط","Loyalty")],["service",t("الصيانة والاستبدال","Service & trade-in")]].map(([key,label]) => <button key={key} onClick={() => setDetailTab(key)} className={`whitespace-nowrap px-3 py-2 rounded-xl text-xs font-bold ${detailTab===key?"bg-indigo-600 text-white":"bg-slate-100 text-slate-600 hover:bg-slate-200"}`}>{label}</button>)}
+          </div>
+          {detailTab === "overview" && <div className="grid lg:grid-cols-2 gap-4">
+            <div className="rounded-2xl border p-4"><h3 className="font-bold text-slate-800 mb-3">{t("طرق الدفع المستخدمة","Payment methods used")}</h3>{(summary.paymentChannels || []).length ? <div className="space-y-2">{summary.paymentChannels.map(p=><div key={p.method} className="flex justify-between gap-3 text-sm border-b last:border-0 pb-2"><span className="text-slate-600">{p.method}</span><span className="font-bold">{money(p.amount)}</span></div>)}</div> : <p className="text-sm text-slate-400">{t("لا توجد تفاصيل دفع مسجلة","No payment splits recorded")}</p>}</div>
+            <div className="rounded-2xl border p-4"><h3 className="font-bold text-slate-800 mb-3">{t("ملخص حساب العميل","Account overview")}</h3><div className="space-y-3 text-sm"><div className="flex justify-between"><span>{t("الرصيد الائتماني المسجل","Stored credit balance")}</span><b>{money(customer?.creditBalance)} </b></div><div className="flex justify-between"><span>{t("حد الائتمان","Credit limit")}</span><b>{money(customer?.creditLimit)}</b></div><div className="flex justify-between"><span>{t("عمليات التحصيل","Collection payments")}</span><b>{summary.paymentCount || 0}</b></div><div className="flex justify-between"><span>{t("عمليات الاستبدال/الشراء من العميل","Trade-ins")}</span><b>{summary.tradeInCount || 0}</b></div><p className="text-xs text-slate-400 pt-2">{t("حركات التحصيل تعني الدفعات المسجلة على مديونيات العميل، وليست تحويلات بنكية شخصية.", "Collections are payments against recorded customer receivables, not personal bank transfers.")}</p></div></div>
+          </div>}
+          {detailTab === "purchases" && <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[700px] text-sm"><thead className="bg-slate-50 text-slate-500"><tr><th className="p-3 text-start">{t("رقم الفاتورة","Invoice")}</th><th className="p-3 text-start">{t("الفرع","Branch")}</th><th className="p-3 text-start">{t("التاريخ","Date")}</th><th className="p-3 text-start">{t("الإجمالي","Total")}</th><th className="p-3 text-start">{t("المدفوع","Paid")}</th><th className="p-3 text-start">{t("المرتجعات","Returns")}</th><th className="p-3 text-start">{t("الأصناف","Items")}</th></tr></thead><tbody>{(customer?.invoices || []).map(inv=><tr key={inv.id} className="border-t"><td className="p-3 font-mono font-bold">{inv.invoiceNumber}</td><td className="p-3">{inv.branch?.name || "—"}</td><td className="p-3">{date(inv.createdAt)}</td><td className="p-3 font-bold">{money(inv.total)}</td><td className="p-3">{money(inv.amountPaid)}</td><td className="p-3 text-rose-600">{money((inv.returns||[]).reduce((n,r)=>n+Number(r.total||0),0))}</td><td className="p-3">{(inv.items||[]).reduce((n,it)=>n+Number(it.quantity||0),0)}</td></tr>)}</tbody></table>{!customer?.invoices?.length && <p className="p-8 text-center text-slate-400">{t("لا توجد فواتير","No invoices")}</p>}</div>}
+          {detailTab === "credit" && <div className="space-y-3">{(customer?.receivables || []).map(r=><div key={r.id} className="rounded-xl border p-4"><div className="flex flex-wrap justify-between gap-2"><div><p className="font-bold">{r.invoice?.invoiceNumber || t("رصيد آجل","Credit balance")} · {r.branch?.name}</p><p className="text-xs text-slate-500 mt-1">{date(r.createdAt)} · {r.status}</p></div><div className="text-end text-sm"><p>{t("الأصل","Original")}: <b>{money(r.originalAmount)}</b></p><p>{t("المتبقي","Remaining")}: <b className="text-rose-600">{money(r.remaining)}</b></p></div></div>{(r.payments||[]).length>0 && <div className="mt-3 border-t pt-2 space-y-2">{r.payments.map(p=><div key={p.id} className="flex justify-between text-xs gap-2"><span>{date(p.createdAt)} · {p.user?.name || "—"} · {p.notes || p.reference || "—"}</span><b className="text-emerald-700">{money(p.amount)}</b></div>)}</div>}</div>)}{!(customer?.receivables||[]).length && <p className="text-center p-8 text-slate-400">{t("لا توجد مديونيات أو عمليات تحصيل مسجلة","No credit or collection records")}</p>}</div>}
+          {detailTab === "loyalty" && <div className="space-y-3"><div className="grid sm:grid-cols-3 gap-3"><Stat label={t("الرصيد الحالي","Current balance")} value={Number(summary.loyaltyPoints||0)} color="amber"/><Stat label={t("إجمالي المكتسب","Earned")} value={Number(summary.loyaltyEarned||0)} color="green"/><Stat label={t("إجمالي المستخدم","Redeemed")} value={Number(summary.loyaltyRedeemed||0)} color="rose"/></div><div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[550px] text-sm"><thead className="bg-slate-50"><tr><th className="p-3 text-start">{t("التاريخ","Date")}</th><th className="p-3 text-start">{t("الحركة","Activity")}</th><th className="p-3 text-start">{t("النقاط","Points")}</th><th className="p-3 text-start">{t("ملاحظات","Notes")}</th></tr></thead><tbody>{(customer?.loyaltyTransactions||[]).map(x=><tr key={x.id} className="border-t"><td className="p-3">{date(x.createdAt)}</td><td className="p-3">{x.type}</td><td className={`p-3 font-bold ${x.points>=0?"text-emerald-600":"text-rose-600"}`}>{x.points>0?"+":""}{x.points}</td><td className="p-3">{x.notes||x.referenceType||"—"}</td></tr>)}</tbody></table>{!(customer?.loyaltyTransactions||[]).length && <p className="p-8 text-center text-slate-400">{t("لا توجد حركات نقاط مسجلة","No loyalty transactions recorded")}</p>}</div></div>}
+          {detailTab === "service" && <div className="grid lg:grid-cols-2 gap-4"><div className="rounded-xl border p-4"><h3 className="font-bold mb-3">{t("الصيانة","Repairs")}</h3><div className="space-y-3">{(customer?.repairs||[]).map(r=><div key={r.id} className="border-b pb-3 last:border-0"><p className="font-semibold">{r.ticketNumber} · {r.deviceType} {r.deviceBrand||""} {r.deviceModel||""}</p><p className="text-xs text-slate-500 mt-1">{date(r.createdAt)} · {r.status}</p><p className="text-xs mt-1">{r.problemDesc}</p><p className="text-xs text-indigo-600 mt-1">{t("التكلفة الفعلية","Actual cost")}: {money(r.actualCost)} · {t("العربون","Deposit")}: {money(r.deposit)}</p></div>)}{!(customer?.repairs||[]).length && <p className="text-sm text-slate-400">{t("لا توجد تذاكر صيانة","No repair tickets")}</p>}</div></div><div className="rounded-xl border p-4"><h3 className="font-bold mb-3">{t("الاستبدال / شراء جهاز من العميل","Trade-in / buyback")}</h3><div className="space-y-3">{(customer?.tradeIns||[]).map(x=><div key={x.id} className="border-b pb-3 last:border-0"><p className="font-semibold">{x.deviceBrand||""} {x.deviceModel||""} · {x.status}</p><p className="text-xs text-slate-500 mt-1">{date(x.createdAt)} · {x.branch?.name}</p><p className="text-xs mt-1">{t("القيمة النهائية","Final value")}: {money(x.finalValue)}</p></div>)}{!(customer?.tradeIns||[]).length && <p className="text-sm text-slate-400">{t("لا توجد عمليات استبدال مسجلة","No trade-in records")}</p>}</div></div></div>}
+        </div> : <div className="py-12 text-center text-slate-400">{t("تعذر تحميل البيانات", "Unable to load profile")}</div>}
+      </Modal>}
     </div>
   );
 }
 
-// ══════════════════════════════════════════════════════════════
 // REPAIRS
 // ══════════════════════════════════════════════════════════════
 const REPAIR_STATUSES = { RECEIVED: { label: "مستلم", color: "blue" }, DIAGNOSING: { label: "تشخيص", color: "yellow" }, UNDER_REPAIR: { label: "قيد الإصلاح", color: "orange" }, WAITING_PARTS: { label: "انتظار قطع", color: "purple" }, COMPLETED: { label: "مكتمل", color: "green" }, DELIVERED: { label: "تم التسليم", color: "slate" }, CANCELLED: { label: "ملغي", color: "red" } };
