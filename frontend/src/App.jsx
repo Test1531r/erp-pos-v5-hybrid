@@ -128,7 +128,7 @@ export default function App() {
         <Route path="expenses" element={guard(<Expenses />, ["SUPER_ADMIN","BRANCH_MANAGER","ACCOUNTANT"])} />
         <Route path="finance" element={guard(<Finance />, ["SUPER_ADMIN","BRANCH_MANAGER","CASHIER","ACCOUNTANT"])} />
         <Route path="returns" element={guard(<Returns />, ["SUPER_ADMIN","BRANCH_MANAGER","CASHIER","ACCOUNTANT"])} />
-        <Route path="users" element={guard(<Users />, ["SUPER_ADMIN","BRANCH_MANAGER"])} />
+        <Route path="users" element={guard(<Users />, ["SUPER_ADMIN"])} />
         <Route path="branches" element={guard(<Branches />, ["SUPER_ADMIN"])} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
