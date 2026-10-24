@@ -92,3 +92,87 @@
 @media (prefers-reduced-motion: reduce) {
   .erp-pro-page, .erp-pro-page * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+
+/* Zebra / thermal printer receipts: print only the receipt at a compact 80mm roll width. */
+@page {
+  size: 80mm auto;
+  margin: 3mm;
+}
+@media print {
+  html, body, #root {
+    width: 74mm !important;
+    min-width: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: Tahoma, Arial, sans-serif !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body * {
+    visibility: hidden !important;
+  }
+  .finance-receipt-print,
+  .finance-receipt-print *,
+  .finance-wallet-receipt,
+  .finance-wallet-receipt * {
+    visibility: visible !important;
+  }
+  .finance-receipt-print,
+  .finance-wallet-receipt {
+    position: absolute !important;
+    inset-block-start: 0 !important;
+    inset-inline-start: 0 !important;
+    width: 74mm !important;
+    max-width: 74mm !important;
+    margin: 0 !important;
+    padding: 2mm !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 9pt !important;
+    line-height: 1.35 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .finance-receipt-print h2,
+  .finance-wallet-receipt h2 {
+    margin: 0 0 2mm !important;
+    font-size: 12pt !important;
+    line-height: 1.25 !important;
+    font-weight: 800 !important;
+  }
+  .finance-receipt-print p,
+  .finance-wallet-receipt p {
+    margin: 1mm 0 !important;
+    color: #000 !important;
+    overflow-wrap: anywhere !important;
+  }
+  .finance-receipt-print > div,
+  .finance-wallet-receipt > div {
+    gap: 2mm !important;
+  }
+  .finance-receipt-print .border-b,
+  .finance-wallet-receipt .border-b {
+    padding-top: 1.5mm !important;
+    padding-bottom: 1.5mm !important;
+    border-color: #999 !important;
+    break-inside: avoid !important;
+  }
+  .finance-receipt-print .text-slate-400,
+  .finance-receipt-print .text-slate-500,
+  .finance-wallet-receipt .text-slate-400,
+  .finance-wallet-receipt .text-slate-500 {
+    color: #222 !important;
+  }
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+}
