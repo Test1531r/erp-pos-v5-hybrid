@@ -28,6 +28,7 @@ import Reports from "./views/Reports.jsx";
 import Settings from "./views/Settings.jsx";
 import Stocktake from "./views/Stocktake.jsx";
 import SyncCenter from "./views/SyncCenter.jsx";
+import ProductDetails from "./views/ProductDetails.jsx";
 
 function CashierShiftGate({ children }) {
   const user = useStore((state) => state.user);
@@ -108,6 +109,7 @@ export default function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="pos" element={guard(<POS />, ["SUPER_ADMIN","BRANCH_MANAGER","CASHIER"])} />
         <Route path="inventory" element={<Inventory />} />
+        <Route path="products/:id" element={<ProductDetails />} />
         <Route path="stock-ledger" element={<StockLedger />} />
         <Route path="purchases" element={guard(<Purchases />, ["SUPER_ADMIN","BRANCH_MANAGER","INVENTORY_MANAGER","ACCOUNTANT"])} />
         <Route path="receivables" element={guard(<Receivables />, ["SUPER_ADMIN","BRANCH_MANAGER","CASHIER","ACCOUNTANT"])} />
