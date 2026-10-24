@@ -662,90 +662,78 @@ export function Sales() {
             <meta charset="UTF-8" />
             <title>${esc(inv.invoiceNumber)}</title>
             <style>
-              @page { size: 80mm auto; margin: 4mm; }
+              @page { size: 80mm auto; margin: 3mm; }
               * { box-sizing: border-box; }
-              body {
-                font-family: Arial, Tahoma, sans-serif;
-                width: 72mm;
-                margin: 0 auto;
-                color: #000;
-                background: #fff;
-                font-size: 12px;
-                line-height: 1.5;
-              }
+              body { font-family: Arial, Tahoma, sans-serif; width: 72mm; margin: 0 auto; color: #172033; background: #fff; font-size: 11px; line-height: 1.45; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .center { text-align: center; }
-              .bold { font-weight: 700; }
-              .row { display: flex; justify-content: space-between; gap: 8px; }
-              .sep { border-top: 1px dashed #000; margin: 7px 0; }
-              .item { margin: 5px 0; }
-              .item-name { font-weight: 700; margin-bottom: 2px; }
-              .small { font-size: 10px; word-break: break-all; }
-              h2 { margin: 0 0 4px; font-size: 18px; }
-              p { margin: 2px 0; }
-              .total { font-size: 15px; font-weight: 700; }
+              .bold { font-weight: 800; }
+              .muted { color: #64748b; }
+              .brand { background: #111827; color: #fff; padding: 13px 8px 11px; border-radius: 8px 8px 0 0; text-align: center; }
+              .brand h2 { margin: 0 0 3px; font-size: 18px; letter-spacing: .2px; color: #fff; }
+              .brand p { margin: 2px 0; color: #e2e8f0; font-size: 10px; }
+              .invoice-label { margin: 10px 0 4px; font-size: 13px; font-weight: 800; }
+              .invoice-no { display: inline-block; padding: 4px 9px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 11px; font-weight: 800; }
+              .meta { margin: 9px 0; padding: 8px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; }
+              .meta p { margin: 3px 0; }
+              .section-title { margin: 10px 0 5px; font-size: 10px; font-weight: 800; color: #475569; }
+              .items-head { display: flex; justify-content: space-between; gap: 5px; padding: 5px 0; border-bottom: 1px solid #cbd5e1; font-size: 9px; color: #64748b; font-weight: 700; }
+              .item { margin: 0; padding: 7px 0; border-bottom: 1px dashed #cbd5e1; break-inside: avoid; }
+              .item-name { font-weight: 800; margin-bottom: 3px; overflow-wrap: anywhere; }
+              .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+              .row span:last-child, .row strong { text-align: end; }
+              .small { margin-top: 3px; font-size: 9px; color: #64748b; word-break: break-all; }
+              .totals { margin-top: 9px; padding: 8px; border: 1px solid #e2e8f0; border-radius: 7px; }
+              .totals .row { margin: 4px 0; }
+              .grand-total { margin: 7px -2px 5px; padding: 8px 6px; border-radius: 5px; background: #eef2ff; color: #312e81; font-size: 14px; font-weight: 900; }
+              .paid { color: #047857; }
+              .due { color: #b45309; font-weight: 800; }
+              .sep { border-top: 1px dashed #cbd5e1; margin: 8px 0; }
+              .footer { margin-top: 11px; padding: 9px 5px; border-top: 1px solid #e2e8f0; text-align: center; color: #475569; }
+              .footer .thanks { font-size: 12px; font-weight: 800; color: #111827; }
+              .footer p { margin: 3px 0; }
+              p { margin: 3px 0; }
+              @media screen { body { margin: 12px auto; padding-bottom: 12px; } }
+              @media print { body { width: 72mm; } .brand, .grand-total { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }
             </style>
           </head>
           <body>
-            <div class="center">
+            <div class="brand">
               <h2>${esc(inv.branch?.name || "ERP POS")}</h2>
               ${inv.branch?.address ? `<p>${esc(inv.branch.address)}</p>` : ""}
               ${inv.branch?.phone ? `<p>${esc(inv.branch.phone)}</p>` : ""}
               ${inv.branch?.taxNumber ? `<p>الرقم الضريبي: ${esc(inv.branch.taxNumber)}</p>` : ""}
-              <div class="sep"></div>
-              <p class="bold">${esc(t("فاتورة مبيعات", "Sales invoice"))}</p>
-              <p>${esc(inv.invoiceNumber)}</p>
-              <p>${new Date(inv.createdAt).toLocaleString("ar-EG")}</p>
             </div>
-
-            <div class="sep"></div>
-            <p>العميل: ${esc(inv.customer?.name || "عميل عادي")}</p>
-            <p>الكاشير: ${esc(inv.cashier?.name || "-")}</p>
-            <div class="sep"></div>
-
-            ${itemsHtml}
-
-            <div class="row">
-              <span>${esc(t("المجموع الفرعي", "Subtotal"))}</span>
-              <span>${money(inv.subtotal)} ج</span>
-            </div>
-
-            ${
-              Number(inv.discountAmount) > 0
-                ? `<div class="row"><span>${esc(t("الخصم", "Discount"))}</span><span>-${money(inv.discountAmount)} ج</span></div>`
-                : ""
-            }
-
-            ${
-              Number(inv.taxAmount) > 0
-                ? `<div class="row"><span>${esc(t("الضريبة", "Tax"))}</span><span>${money(inv.taxAmount)} ج</span></div>`
-                : ""
-            }
-
-            <div class="sep"></div>
-            <div class="row total">
-              <span>${esc(t("الإجمالي", "Total"))}</span>
-              <span>${money(inv.total)} ج</span>
-            </div>
-            <div class="row">
-              <span>${esc(t("المدفوع", "Paid"))}</span>
-              <span>${money(inv.amountPaid)} ج</span>
-            </div>
-
-            ${
-              Number(inv.changeGiven) > 0
-                ? `<div class="row"><span>${esc(t("الباقي", "Change due"))}</span><span>${money(inv.changeGiven)} ج</span></div>`
-                : ""
-            }
-
-            <div class="sep"></div>
-            <p>طريقة الدفع: ${paymentText}</p>
-            ${inv.notes ? `<p>ملاحظات: ${esc(inv.notes)}</p>` : ""}
-            <div class="sep"></div>
-
             <div class="center">
-              <p>${esc(t("شكراً لتعاملكم معنا", "Thank you for your business"))}</p>
+              <p class="invoice-label">${esc(t("فاتورة مبيعات", "SALES INVOICE"))}</p>
+              <span class="invoice-no">${esc(inv.invoiceNumber)}</span>
+              <p class="muted">${new Date(inv.createdAt).toLocaleString(en ? "en-US" : "ar-EG")}</p>
             </div>
-
+            <div class="meta">
+              <p><span class="muted">${esc(t("العميل", "Customer"))}:</span> <strong>${esc(inv.customer?.name || t("عميل نقدي", "Walk-in"))}</strong></p>
+              ${inv.customer?.phone ? `<p><span class="muted">${esc(t("الهاتف", "Phone"))}:</span> ${esc(inv.customer.phone)}</p>` : ""}
+              <p><span class="muted">${esc(t("الكاشير", "Cashier"))}:</span> ${esc(inv.cashier?.name || "-")}</p>
+            </div>
+            <p class="section-title">${esc(t("تفاصيل الأصناف", "ITEM DETAILS"))}</p>
+            <div class="items-head"><span>${esc(t("الصنف / الكمية × السعر", "ITEM / QTY × PRICE"))}</span><span>${esc(t("الإجمالي", "TOTAL"))}</span></div>
+            ${itemsHtml || `<p class="center muted">${esc(t("لا توجد أصناف", "No items"))}</p>`}
+            <div class="totals">
+              <div class="row"><span>${esc(t("المجموع الفرعي", "Subtotal"))}</span><span>${money(inv.subtotal)} ج</span></div>
+              ${Number(inv.discountAmount) > 0 ? `<div class="row"><span>${esc(t("الخصم", "Discount"))}</span><span>−${money(inv.discountAmount)} ج</span></div>` : ""}
+              ${Number(inv.taxAmount) > 0 ? `<div class="row"><span>${esc(t("الضريبة", "Tax"))}</span><span>${money(inv.taxAmount)} ج</span></div>` : ""}
+              <div class="row grand-total"><span>${esc(t("الإجمالي النهائي", "GRAND TOTAL"))}</span><span>${money(inv.total)} ج</span></div>
+              <div class="row paid"><span>${esc(t("المدفوع", "Paid"))}</span><strong>${money(inv.amountPaid)} ج</strong></div>
+              ${Math.max(0, Number(inv.total || 0) - Number(inv.amountPaid || 0)) > 0.009 ? `<div class="row due"><span>${esc(t("المتبقي", "Balance due"))}</span><strong>${money(Math.max(0, Number(inv.total || 0) - Number(inv.amountPaid || 0)))} ج</strong></div>` : ""}
+              ${Number(inv.changeGiven) > 0 ? `<div class="row"><span>${esc(t("الباقي للعميل", "Change"))}</span><span>${money(inv.changeGiven)} ج</span></div>` : ""}
+            </div>
+            <div class="meta">
+              <p><span class="muted">${esc(t("طريقة الدفع", "Payment method"))}:</span> <strong>${paymentText}</strong></p>
+              ${inv.notes ? `<p><span class="muted">${esc(t("ملاحظات", "Notes"))}:</span> ${esc(inv.notes)}</p>` : ""}
+            </div>
+            <div class="footer">
+              <p class="thanks">${esc(t("شكراً لتعاملكم معنا", "Thank you for your business"))}</p>
+              <p>${esc(t("نتمنى لكم يوماً سعيداً", "We appreciate your business"))}</p>
+              <p class="muted">${esc(inv.invoiceNumber)}</p>
+            </div>
             <script>
               window.onload = function () {
                 setTimeout(function () {
