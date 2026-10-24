@@ -142,6 +142,34 @@ router.get("/", async (req, res) => {
 });
 
 /* ===========================
+   Branch Staff Performance
+=========================== */
+router.get("/:id/staff", async (req, res) => {
+  try {
+    const branchId = req.params.id;
+    if (req.user.role !== "SUPER_ADMIN" && req.user.branchId !== branchId) return res.status(403).json({ success: false, error: "ليس لديك صلاحية" });
+    const branch = await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true, name: true, code: true, city: true, isActive: true } });
+    if (!branch) return res.status(404).json({ success: false, error: "الفرع غير موجود" });
+    const staff = await prisma.user.findMany({
+      where: { branchId },
+      select: { id: true, name: true, username: true, email: true, role: true, isActive: true, createdAt: true, lastLoginAt: true,
+        invoices: { where: { branchId }, select: { id: true, total: true } },
+        saleReturns: { where: { branchId, status: "COMPLETED" }, select: { id: true, total: true } },
+      }, orderBy: { name: "asc" },
+    });
+    const employees = staff.map(({ invoices, saleReturns, ...employee }) => {
+      const salesTotal = invoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0);
+      const returnsTotal = saleReturns.reduce((sum, item) => sum + Number(item.total || 0), 0);
+      return { ...employee, salesCount: invoices.length, salesTotal, returnsCount: saleReturns.length, returnsTotal, netSales: salesTotal - returnsTotal };
+    });
+    res.json({ success: true, data: { branch, employees } });
+  } catch (err) {
+    console.error("Branch staff report error:", err);
+    res.status(500).json({ success: false, error: "تعذر تحميل تقرير موظفي الفرع" });
+  }
+});
+
+/* ===========================
    Branch Statistics
 =========================== */
 
