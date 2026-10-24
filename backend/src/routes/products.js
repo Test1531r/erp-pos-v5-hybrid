@@ -123,6 +123,31 @@ router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER")
   } catch (err) { if (err.code === "P2002") return res.status(409).json({ error: "SKU أو الباركود موجود بالفعل" }); res.status(500).json({ error: "تعذر إنشاء المنتج" }); }
 });
 
+router.post("/:id/stock", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"), async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const delta = Number(req.body?.delta);
+    const branchId = req.branchId || req.user.branchId;
+    if (!branchId) return res.status(400).json({ error: "الفرع غير محدد" });
+    if (!Number.isInteger(delta) || delta === 0) return res.status(400).json({ error: "أدخل كمية صحيحة غير صفرية" });
+    const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, name: true, parentProductId: true } });
+    if (!product) return res.status(404).json({ error: "المنتج غير موجود" });
+    const current = await prisma.inventory.findUnique({ where: { productId_branchId: { productId, branchId } } });
+    const nextQuantity = Number(current?.quantity || 0) + delta;
+    if (nextQuantity < 0) return res.status(400).json({ error: "لا يمكن أن يصبح المخزون أقل من صفر" });
+    const inventory = await prisma.inventory.upsert({
+      where: { productId_branchId: { productId, branchId } },
+      create: { productId, branchId, quantity: nextQuantity },
+      update: { quantity: nextQuantity }
+    });
+    await audit(req.user, "STOCK_ADJUSTMENT", "Inventory", inventory.id, { productId, productName: product.name, branchId, delta, quantityBefore: current?.quantity || 0, quantityAfter: nextQuantity });
+    res.json({ productId, branchId, delta, quantity: inventory.quantity, inventory });
+  } catch (err) {
+    console.error("PRODUCT_STOCK_ADJUSTMENT_ERROR", err);
+    res.status(500).json({ error: "تعذر تحديث المخزون" });
+  }
+});
+
 router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTORY_MANAGER"), async (req, res) => {
   try {
     const data = { ...req.body };
