@@ -32,7 +32,8 @@ export default function Login() {
   };
 
   return (
-    <div dir={en ? "ltr" : "rtl"} className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative">\n      <button type="button" onClick={() => setLanguage(en ? "ar" : "en")} className="absolute top-5 right-5 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20"><Globe className="h-4 w-4"/>{en ? "العربية" : "English"}</button>
+    <div dir={en ? "ltr" : "rtl"} className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-slate-900 flex items-center justify-center p-4 relative">
+      <button type="button" onClick={() => setLanguage(en ? "ar" : "en")} className="absolute top-5 right-5 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white hover:bg-white/20"><Globe className="h-4 w-4"/>{en ? "العربية" : "English"}</button>
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
