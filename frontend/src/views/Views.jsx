@@ -1310,9 +1310,13 @@ export function Users() {
   const en = language === "en";
   const t = (ar, english) => en ? english : ar;
   const { branches, fetchBranches } = useStore();
+  const currentUser = useStore((state) => state.user);
+  const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
+  const { confirm } = useDialog();
   const [users, setUsers] = useState([]);
   const [modal, setModal] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [summaryUser, setSummaryUser] = useState(null);
   const [form, setForm] = useState({ role: "CASHIER", isActive: true });
 
   const load = async () => {
@@ -1321,6 +1325,15 @@ export function Users() {
   };
 
   useEffect(() => { load(); fetchBranches(); }, []);
+
+  const handleDelete = async (user) => {
+    if (!isSuperAdmin) return;
+    const ok = await confirm(t(`هل تريد حذف المستخدم ${user.name}؟ إذا كان مرتبطًا بعمليات مالية أو تشغيلية فلن يسمح النظام بالحذف حفاظًا على السجلات.`, `Delete ${user.name}? Users with operational or financial history cannot be permanently deleted.`), { title: t("تأكيد حذف المستخدم", "Confirm user deletion"), danger: true, confirmLabel: t("حذف المستخدم", "Delete user") });
+    if (!ok) return;
+    try { await api.delete(`/users/${user.id}`); toast.success(t("تم حذف المستخدم", "User deleted")); await load(); }
+    catch (err) { toast.error(err.response?.data?.error || t("تعذر حذف المستخدم", "Could not delete user")); }
+  };
+  const money = (value) => Number(value || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 });
 
   const handleSave = async () => {
     try {
@@ -1339,9 +1352,9 @@ export function Users() {
         <Btn onClick={() => { setForm({ role: "CASHIER", isActive: true, password: "", maxDiscountPct: 15 }); setModal("add"); }}><Plus className="w-4 h-4" /> مستخدم جديد</Btn>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[1050px] text-sm">
           <thead><tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-            <th className="px-4 py-3 font-semibold">{t("المستخدم", "User")}</th><th className="px-4 py-3 font-semibold">{t("اسم المستخدم", "Username")}</th><th className="px-4 py-3 font-semibold">{t("الدور", "Role")}</th><th className="px-4 py-3 font-semibold">{t("الفرع", "Branch")}</th><th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th><th className="px-4 py-3 font-semibold">{t("آخر دخول", "Last login")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
+            <th className="px-4 py-3 font-semibold">{t("المستخدم", "User")}</th><th className="px-4 py-3 font-semibold">{t("اسم المستخدم", "Username")}</th><th className="px-4 py-3 font-semibold">{t("الدور", "Role")}</th><th className="px-4 py-3 font-semibold">{t("الفرع", "Branch")}</th><th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th><th className="px-4 py-3 font-semibold">{t("آخر دخول", "Last login")}</th><th className="px-4 py-3 font-semibold">{t("ملخص", "Summary")}</th><th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
           </tr></thead>
           <tbody>
             {users.map((u) => (
@@ -1357,14 +1370,14 @@ export function Users() {
                 <td className="px-4 py-3 text-slate-600">{u.branch?.name || "—"}</td>
                 <td className="px-4 py-3"><Badge color={u.isActive ? "green" : "red"}>{u.isActive ? "فعال" : "معطل"}</Badge></td>
                 <td className="px-4 py-3 text-slate-500 text-xs">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString("ar-EG") : "لم يدخل بعد"}</td>
-                <td className="px-4 py-3"><button onClick={() => { setSelected(u); setForm({ name: u.name, email: u.email, role: u.role, branchId: u.branchId, isActive: u.isActive, password: "", maxDiscountPct: u.maxDiscountPct ?? 15, permissions: u.permissions || {} }); setModal("edit"); }} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500"><Edit2 className="w-4 h-4" /></button></td>
+                <td className="px-4 py-3"><Btn variant="secondary" onClick={() => setSummaryUser(u)} className="!py-1.5 !px-2"><FileText className="w-4 h-4" />{t("عرض الملخص", "View summary")}</Btn></td><td className="px-4 py-3"><div className="flex items-center gap-1"><button title={t("تعديل", "Edit")} onClick={() => { setSelected(u); setForm({ name: u.name, email: u.email, role: u.role, branchId: u.branchId, isActive: u.isActive, password: "", maxDiscountPct: u.maxDiscountPct ?? 15, permissions: u.permissions || {} }); setModal("edit"); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500"><Edit2 className="w-4 h-4" /></button>{isSuperAdmin && <button title={t("حذف المستخدم", "Delete user")} onClick={() => handleDelete(u)} className="p-2 hover:bg-red-50 rounded-lg text-red-600"><Trash2 className="w-4 h-4" /></button>}</div></td>
               </tr>
             ))}
-            {users.length === 0 && <tr><td colSpan={7} className="text-center py-12 text-slate-400">{t("لا يوجد مستخدمون", "No users found")}</td></tr>}
+            {users.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-slate-400">{t("لا يوجد مستخدمون", "No users found")}</td></tr>}
           </tbody>
         </table>
       </div>
-      {modal && (
+      {(modal === "add" || modal === "edit") && (
         <Modal title={modal === "add" ? "مستخدم جديد" : "تعديل المستخدم"} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
           <div className="space-y-3">
             <Field label="الاسم الكامل *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
