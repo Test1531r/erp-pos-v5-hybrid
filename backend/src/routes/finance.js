@@ -94,6 +94,29 @@ router.post("/transfer", authorize(...financeRoles), async (req, res) => {
   } catch (err) { res.status(err.status || 500).json({ error: err.status ? err.message : "تعذر تنفيذ التحويل" }); }
 });
 
+router.post("/remittance", authorize(...financeRoles), async (req, res) => {
+ try {
+  const {direction,provider,accountId,commissionAccountId,customerName,customerPhone,sourceNumber,destinationNumber,reference,notes}=req.body;
+  if(!["SEND","RECEIVE"].includes(direction))return res.status(400).json({error:"حدد تحويل صادر أو استلام وارد"});
+  if(!["VODAFONE_CASH","INSTAPAY","WALLET","BANK"].includes(provider))return res.status(400).json({error:"نوع الخدمة غير صالح"});
+  if(!accountId)return res.status(400).json({error:"اختر المحفظة أو الحساب"});
+  const amount=money(req.body.amount,"المبلغ المحوّل",{allowZero:false}),commission=money(req.body.commission||0,"العمولة"),group=randomUUID();
+  const safeName=String(customerName||"").trim().slice(0,120);
+  const details=[safeName?"العميل: "+safeName:"",customerPhone?"هاتف: "+String(customerPhone).slice(0,40):"",sourceNumber?"من رقم: "+String(sourceNumber).slice(0,40):"",destinationNumber?"إلى رقم: "+String(destinationNumber).slice(0,40):"",reference?"مرجع: "+String(reference).slice(0,100):"",notes?"ملاحظات: "+String(notes).slice(0,500):""].filter(Boolean).join(" | ");
+  const acc=await prisma.financialAccount.findFirst({where:{id:accountId,branchId:req.branchId,isActive:true}});
+  if(!acc)return res.status(422).json({error:"الحساب غير موجود أو غير فعال"});
+  const feeAcc=commissionAccountId?await prisma.financialAccount.findFirst({where:{id:commissionAccountId,branchId:req.branchId,isActive:true}}):acc;
+  if(!feeAcc)return res.status(422).json({error:"حساب العمولة غير موجود أو غير فعال"});
+  await prisma.$transaction(async tx=>{
+   await postMovement(tx,{branchId:req.branchId,accountId,userId:req.user.id,type:direction==="SEND"?"TRANSFER_OUT":"TRANSFER_IN",amount,direction:direction==="SEND"?"OUT":"IN",transferGroupId:group,referenceType:"REMITTANCE",referenceId:group,description:(direction==="SEND"?"تحويل لعميل":"استلام من عميل")+" - "+provider,notes:details});
+   if(commission>0)await postMovement(tx,{branchId:req.branchId,accountId:feeAcc.id,userId:req.user.id,type:"OTHER_IN",amount:commission,direction:"IN",transferGroupId:group,referenceType:"REMITTANCE_FEE",referenceId:group,description:"عمولة تحويل - "+provider,notes:details});
+  },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  await audit(req.user,"FINANCE_REMITTANCE","FinancialTransaction",group,{direction,provider,amount,commission,accountId,commissionAccountId:feeAcc.id},req.branchId);
+  const number="TR-"+group.slice(0,8).toUpperCase(),receipt={number,date:new Date().toISOString(),direction:direction==="SEND"?"تحويل صادر":"استلام وارد",provider,customerName:safeName,customerPhone:customerPhone||"",sourceNumber:sourceNumber||"",destinationNumber:destinationNumber||"",amount:Number(amount).toFixed(2),commission:Number(commission).toFixed(2),reference:reference||"",text:["إيصال تحويل مالي","رقم: "+number,"النوع: "+(direction==="SEND"?"تحويل صادر":"استلام وارد"),"الخدمة: "+provider,"العميل: "+safeName,"من: "+(sourceNumber||"-"),"إلى: "+(destinationNumber||"-"),"المبلغ: "+Number(amount).toFixed(2),"العمولة: "+Number(commission).toFixed(2),"المرجع: "+(reference||"-")].join("\\n")};
+  return res.status(201).json({receipt});
+ }catch(err){return res.status(err.status||500).json({error:err.status?err.message:"تعذر تسجيل التحويل"});}
+});
+
 router.get("/summary", authorize(...financeRoles), async (req, res) => {
   try {
     await prisma.$transaction((tx) => ensureDefaultAccounts(tx, req.branchId));
