@@ -95,11 +95,12 @@ router.post("/bulk/import", authorize("SUPER_ADMIN", "BRANCH_MANAGER", "INVENTOR
 });
 
 router.get("/:id", async (req, res) => {
-  const product = await prisma.product.findUnique({ where: { id: req.params.id }, include: { category: true, inventory: { include: { branch: { select: { name: true, code: true } } } }, imeiRecords: { where: { status: "IN_STOCK" }, orderBy: { receivedAt: "desc" } } } });
+  const product = await prisma.product.findUnique({ where: { id: req.params.id }, include: { category: true, inventory: { include: { branch: { select: { id: true, name: true, code: true } } } }, variants: { orderBy: { name: "asc" }, include: { inventory: { include: { branch: { select: { id: true, name: true, code: true } } } }, imeiRecords: { where: { status: "IN_STOCK" }, orderBy: { receivedAt: "desc" } } } }, parentProduct: { select: { id: true, name: true, sku: true, imageUrl: true } }, imeiRecords: { where: { status: "IN_STOCK" }, orderBy: { receivedAt: "desc" } } } });
   if (!product) return res.status(404).json({ error: "المنتج غير موجود" });
   if (req.user.role !== "SUPER_ADMIN") {
     product.inventory = product.inventory.filter((x) => x.branchId === req.user.branchId);
     product.imeiRecords = product.imeiRecords.filter((x) => x.branchId === req.user.branchId);
+    product.variants = product.variants.map((variant) => ({ ...variant, inventory: variant.inventory.filter((x) => x.branchId === req.user.branchId), imeiRecords: variant.imeiRecords.filter((x) => x.branchId === req.user.branchId) }));
   }
   res.json(product);
 });
