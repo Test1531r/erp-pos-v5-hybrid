@@ -79,7 +79,7 @@ router.post("/checkout", async (req, res) => {
         const unitPrice = decimal(requestedPrice);
         const discountPctN = money(raw.discountPct || 0, "خصم الصنف");
         if (discountPctN > 100) throw Object.assign(new Error("نسبة خصم الصنف غير صالحة"), { status: 400 });
-        if (req.user.role === "CASHIER" && discountPctN > Number(req.user.maxDiscountPct || 0)) throw Object.assign(new Error(`الخصم على "${product.name}" يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
+        if (req.user.role === "CASHIER" && discountPctN > Number(req.user.maxDiscountPct || 0) && !req.body.approvalRequestId) throw Object.assign(new Error(`الخصم على "${product.name}" يتجاوز حدك المسموح (${Number(req.user.maxDiscountPct || 0)}%)`), { status: 403 });
         if (req.user.role !== "SUPER_ADMIN" && branchSettings.requireApprovalDiscountAbove != null && discountPctN > Number(branchSettings.requireApprovalDiscountAbove)) throw Object.assign(new Error(`خصم الصنف "${product.name}" يتجاوز حد الموافقة (${Number(branchSettings.requireApprovalDiscountAbove)}%). استخدم خصم الفاتورة لطلب اعتماد المدير.`), { status: 403 });
         if (req.user.role === "CASHIER" && !unitPrice.equals(product.salePrice)) throw Object.assign(new Error(`لا تملك صلاحية تعديل سعر "${product.name}"`), { status: 403 });
         const discPct = decimal(discountPctN);
@@ -87,6 +87,21 @@ router.post("/checkout", async (req, res) => {
         const lineTotal = gross.sub(gross.mul(discPct).div(100));
         subtotal = subtotal.add(lineTotal);
         lineItems.push({ productId: product.id, productName: product.name, sku: product.sku, quantity, unitPrice, costPrice: product.costPrice, discountPct: discPct, lineTotal, imeiNumbers, stockBefore: inv.quantity, lowStockQty: product.lowStockQty });
+      }
+
+      const itemDiscountTotal = lineItems.reduce((sum, item) => sum.add(item.unitPrice.mul(item.quantity).mul(item.discountPct).div(100)), decimal(0));
+      const itemNeedsApproval = req.user.role === "CASHIER" && lineItems.some(item => Number(item.discountPct) > Number(req.user.maxDiscountPct || 0));
+      if (itemNeedsApproval) {
+        const approvalId = String(req.body.approvalRequestId || "");
+        if (!approvalId) throw Object.assign(new Error("يتطلب خصم صنف تجاوز حدك موافقة المدير. سيتم إرسال طلب الموافقة من شاشة البيع."), { status: 403 });
+        const approval = await tx.approvalRequest.findFirst({ where: { id: approvalId, branchId, requestedById: req.user.id, entityType: "DISCOUNT", action: "APPROVE_DISCOUNT", status: "APPROVED", entityId: null } });
+        const cartSignature = lineItems.map(x => `${x.productId}:${x.quantity}:${decimal(x.unitPrice).toFixed(2)}:${decimal(x.discountPct).toFixed(2)}`).sort().join("|");
+        const approvedAmount = Number(approval?.payload?.discountAmount);
+        const approvedSubtotal = Number(approval?.payload?.subtotal);
+        if (!approval || Math.abs(approvedAmount - Number(itemDiscountTotal)) > 0.009 || Math.abs(approvedSubtotal - Number(subtotal)) > 0.009 || approval.payload?.cartSignature !== cartSignature) {
+          throw Object.assign(new Error("موافقة المدير غير موجودة أو لا تطابق السلة الحالية. أعد إرسال طلب الموافقة."), { status: 403 });
+        }
+        req.approvedDiscountRequestId = approval.id;
       }
 
       let promotion = null;
