@@ -46,7 +46,7 @@ export default function Settings() {
   if(loading||!form)return <div className="p-8 text-center text-slate-500">{t("جارٍ تحميل الإعدادات...","Loading settings...")}</div>;
   return <div className="p-4 md:p-6 space-y-5" dir={en?"ltr":"rtl"}>
     <header className="flex flex-wrap items-center justify-between gap-3">
-      <div><h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><Settings2 className="text-indigo-600"/>{t("الإعدادات","Settings")}</h1><p className="mt-1 text-sm text-slate-500">{t("إعدادات التشغيل والتحكم في مميزات النظام","Configure operations and control system features")}</p></div>
+      <div><h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900"><Settings2 className="text-indigo-600"/>{t("الإعدادات","Settings")}</h1></div>
       <span className="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700"><Globe className="h-4 w-4"/>{en?"English":"العربية"} · {isSuperAdmin?"SUPER ADMIN":t("مدير الفرع","Branch manager")}</span>
     </header>
     <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">{tabs.map(([id,Icon,label])=><button key={id} onClick={()=>setTab(id)} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold ${tab===id?"bg-indigo-600 text-white shadow-sm":"border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}><Icon className="h-4 w-4"/>{label}</button>)}</div>
