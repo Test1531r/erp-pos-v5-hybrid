@@ -34,8 +34,35 @@ router.get("/invoice/:invoiceId/available", async (req, res) => {
     });
     if (!invoice) return res.status(404).json({ error: "الفاتورة غير موجودة" });
     const returned = new Map();
-    for (const r of invoice.returns) for (const item of r.items) returned.set(item.invoiceItemId, (returned.get(item.invoiceItemId) || 0) + item.quantity);
-    const items = invoice.items.map((item) => ({ ...item, returnedQty: returned.get(item.id) || 0, availableQty: item.quantity - (returned.get(item.id) || 0) }));
+    const returnedImeis = new Set();
+    for (const r of invoice.returns) {
+      for (const item of r.items) {
+        returned.set(item.invoiceItemId, (returned.get(item.invoiceItemId) || 0) + item.quantity);
+        for (const imei of item.imeiNumbers || []) returnedImeis.add(imei);
+      }
+    }
+
+    // Only offer device identifiers that still belong to this invoice and are
+    // currently marked SOLD in this branch. Previously returned IMEIs are excluded.
+    const invoiceImeis = [...new Set(invoice.items.flatMap((item) => item.imeiNumbers || []))];
+    const currentlySoldImeis = invoiceImeis.length
+      ? new Set((await prisma.productIMEI.findMany({
+          where: {
+            imei: { in: invoiceImeis },
+            branchId: req.branchId,
+            status: "SOLD",
+            saleInvoiceId: invoice.id,
+          },
+          select: { imei: true },
+        })).map((row) => row.imei))
+      : new Set();
+
+    const items = invoice.items.map((item) => ({
+      ...item,
+      returnedQty: returned.get(item.id) || 0,
+      availableQty: item.quantity - (returned.get(item.id) || 0),
+      availableImeis: (item.imeiNumbers || []).filter((imei) => currentlySoldImeis.has(imei) && !returnedImeis.has(imei)),
+    }));
     res.json({ ...invoice, items });
   } catch { res.status(500).json({ error: "تعذر تحميل بيانات الفاتورة" }); }
 });
