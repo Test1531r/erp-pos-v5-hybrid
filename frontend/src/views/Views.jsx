@@ -1,540 +1,3 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3 } from "lucide-react";
-import toast from "react-hot-toast";
-import { useDialog } from "../components/InteractionProvider.jsx";
-
-// ── SHARED MODAL ────────────────────────────────────────────
-function Modal({ title, onClose, children, footer, size = "lg" }) {
-  const widthClass = size === "xl" ? "max-w-4xl" : size === "md" ? "max-w-md" : "max-w-lg";
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl w-full ${widthClass} shadow-2xl max-h-[90vh] flex flex-col`} onClick={(e) => e.stopPropagation()}>
-        <div className="p-5 border-b flex items-center justify-between shrink-0">
-          <h3 className="font-bold text-slate-800">{title}</h3>
-          <button onClick={onClose}><X className="w-5 h-5 text-slate-400" /></button>
-        </div>
-        <div className="p-5 overflow-y-auto flex-1">{children}</div>
-        {footer && <div className="p-5 border-t shrink-0 flex gap-2">{footer}</div>}
-      </div>
-    </div>
-  );
-}
-
-function Btn({ onClick, children, variant = "primary", disabled, className = "" }) {
-  const base = "px-4 py-2.5 rounded-xl text-sm font-medium transition-colors disabled:opacity-50 flex items-center gap-2";
-  const variants = { primary: "bg-indigo-600 text-white hover:bg-indigo-700", secondary: "border border-slate-200 text-slate-700 hover:bg-slate-50", danger: "bg-red-600 text-white hover:bg-red-700", success: "bg-green-600 text-white hover:bg-green-700" };
-  return <button onClick={onClick} disabled={disabled} className={`${base} ${variants[variant]} ${className}`}>{children}</button>;
-}
-
-function Field({ label, children }) {
-  return <div className="space-y-1"><label className="text-sm font-medium text-slate-700">{label}</label>{children}</div>;
-}
-
-function Input({ ...props }) {
-  return <input {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />;
-}
-
-function Select({ children, ...props }) {
-  return <select {...props} className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">{children}</select>;
-}
-
-function Badge({ children, color = "slate" }) {
-  const colors = { slate: "bg-slate-100 text-slate-700", green: "bg-green-100 text-green-700", red: "bg-red-100 text-red-700", yellow: "bg-yellow-100 text-yellow-700", blue: "bg-blue-100 text-blue-700", orange: "bg-orange-100 text-orange-700", purple: "bg-purple-100 text-purple-700" };
-  return <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${colors[color]}`}>{children}</span>;
-}
-
-async function prepareProductImage(file) {
-  if (!file || !file.type?.startsWith("image/")) throw new Error("اختر ملف صورة صالحًا");
-  if (file.size > 8 * 1024 * 1024) throw new Error("حجم الصورة الأصلية يجب ألا يتجاوز 8 ميجابايت");
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = new Image();
-    image.src = objectUrl;
-    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("تعذر قراءة الصورة")); });
-    const scale = Math.min(1, 360 / Math.max(image.naturalWidth, image.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-    canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-    for (const quality of [0.72, 0.62, 0.52, 0.42, 0.34]) {
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/webp", quality));
-      if (!blob) continue;
-      if (blob.size <= 28 * 1024) {
-        return await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error("تعذر تجهيز الصورة"));
-          reader.readAsDataURL(blob);
-        });
-      }
-    }
-    throw new Error("الصورة لا تزال كبيرة بعد الضغط. اختر صورة أبسط أو استخدم رابط صورة مباشر.");
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-// ══════════════════════════════════════════════════════════════
-// INVENTORY
-// ══════════════════════════════════════════════════════════════
-export function Inventory() {
-  const navigate = useNavigate();
-  const { confirm } = useDialog();
-  const language = useStore((state) => state.language);
-  const en = language === "en";
-  const t = (ar, english) => en ? english : ar;
-  const { categories, fetchCategories, activeBranch } = useStore();
-  const [products, setProducts] = useState([]);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [modal, setModal] = useState(null); // null | 'add' | 'edit' | 'adjust' | 'imei'
-  const [selected, setSelected] = useState(null);
-  const [form, setForm] = useState({});
-  const [adjustForm, setAdjustForm] = useState({ type: "ADD", quantity: 1, reason: "" });
-  const [imeiList, setImeiList] = useState([{ imei: "", color: "", storage: "" }]);
-  const [stockFilter, setStockFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("grid");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [imageUploading, setImageUploading] = useState(false);
-  const [expandedProducts, setExpandedProducts] = useState({});
-
-  const quantityFor = (product) => product.variants?.length ? product.variants.reduce((sum, variant) => sum + Number(variant.inventory?.[0]?.quantity ?? 0), 0) : Number(product.inventory?.[0]?.quantity ?? 0);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get(`/products?view=management&limit=100&branchId=${activeBranch?.id || ""}&search=${encodeURIComponent(search)}`);
-      setProducts(data.products);
-    } catch { toast.error("فشل تحميل المنتجات"); }
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); fetchCategories(); }, [search, activeBranch?.id]);
-  const inventorySummary = products.reduce((summary, product) => {
-    const quantity = quantityFor(product);
-    if (product.isActive !== false && quantity <= Number(product.lowStockQty ?? 5)) {
-      summary.lowStock += 1;
-      if (quantity === 0) summary.outOfStock += 1;
-    }
-    return summary;
-  }, { lowStock: 0, outOfStock: 0 });
-  const visibleProducts = products.filter((product) => {
-    const quantity = quantityFor(product);
-    const matchesStock = stockFilter === "all" || (product.isActive !== false && (stockFilter === "out" ? quantity === 0 : quantity <= Number(product.lowStockQty ?? 5)));
-    const matchesCategory = categoryFilter === "all" || product.categoryId === categoryFilter;
-    return matchesStock && matchesCategory;
-  });
-  const reorderSuggestions = products
-    .filter((product) => product.isActive !== false && !product.hasIMEI)
-    .map((product) => {
-      const quantity = Number(quantityFor(product));
-      const minimum = Math.max(0, Number(product.lowStockQty ?? 5));
-      const target = Math.max(minimum + 1, minimum * 2, 1);
-      return { ...product, currentQuantity: quantity, minimumQuantity: minimum, suggestedQuantity: Math.max(0, target - quantity) };
-    })
-    .filter((product) => product.currentQuantity <= product.minimumQuantity && product.suggestedQuantity > 0)
-    .sort((a, b) => a.currentQuantity - b.currentQuantity || a.name.localeCompare(b.name));
-
-  const openAdd = () => { setSelected(null); setForm({ salePrice: 0, costPrice: 0, lowStockQty: 5, hasIMEI: false, isActive: true, parentProductId: null }); setModal("add"); };
-  const openEdit = (p) => { setSelected(p); setForm({ ...p }); setModal("edit"); };
-  const openAddVariant = (parent) => { setSelected(parent); setForm({ name: parent.name, brand: parent.brand || "", categoryId: parent.categoryId || "", salePrice: Number(parent.salePrice || 0), costPrice: Number(parent.costPrice || 0), lowStockQty: 5, hasIMEI: parent.hasIMEI || false, isActive: true, parentProductId: parent.id, variantLabel: "", imageUrl: parent.imageUrl || "" }); setModal("variantAdd"); };
-  const toggleVariants = (id) => setExpandedProducts(current => ({ ...current, [id]: !current[id] }));
-  const handleDeleteProduct = async (product) => {
-    const variantCount = product.variants?.length || 0;
-    const message = t("هل تريد تعطيل المنتج؟ ستظل الفواتير والحركات التاريخية محفوظة.", "Deactivate this product? Historical invoices and stock movements will be preserved.") + (variantCount ? " " + variantCount + t(" متغير سيتم تعطيله أيضًا.", " variant(s) will also be deactivated.") : "");
-    const ok = await confirm(message, { title: t("تأكيد حذف المنتج", "Confirm product deletion"), danger: true, confirmLabel: t("حذف المنتج", "Delete product") });
-    if (!ok) return;
-    try { await api.delete(`/products/${product.id}`); toast.success(t("تم حذف/تعطيل المنتج", "Product deactivated")); await load(); }
-    catch (err) { toast.error(err.response?.data?.error || t("تعذر حذف المنتج", "Could not delete product")); }
-  };
-  const openAdjust = (p) => { setSelected(p); setAdjustForm({ type: "ADD", quantity: 1, reason: "" }); setModal("adjust"); };
-  const openIMEI = (p) => { setSelected(p); setImeiList([{ imei: "", color: "", storage: "" }]); setModal("imei"); };
-
-  const handleImageUpload = async (file) => {
-    if (!file) return;
-    setImageUploading(true);
-    try {
-      const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-      const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-      let imageUrl;
-      if (cloudName && uploadPreset) {
-        const compressed = await prepareProductImage(file);
-        const blob = await (await fetch(compressed)).blob();
-        const body = new FormData();
-        body.append("file", blob, "product.webp");
-        body.append("upload_preset", uploadPreset);
-        body.append("folder", "erp-pos/products");
-        const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: "POST", body });
-        const result = await response.json();
-        if (!response.ok || !result.secure_url) throw new Error(result.error?.message || "فشل رفع الصورة إلى خدمة الصور");
-        imageUrl = result.secure_url;
-      } else {
-        imageUrl = await prepareProductImage(file);
-      }
-      setForm(current => ({ ...current, imageUrl }));
-      toast.success(cloudName && uploadPreset ? "تم رفع الصورة" : "تم تجهيز الصورة المضغوطة وحفظها مع بيانات المنتج");
-    } catch (err) {
-      toast.error(err.message || "تعذر رفع الصورة");
-    } finally {
-      setImageUploading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (imageUploading) return toast.error(t("انتظر حتى تنتهي معالجة الصورة", "Please wait for image processing to finish"));
-    try {
-      if (modal === "add" || modal === "variantAdd") {
-        const payload = { ...form };
-        if (modal === "variantAdd") {
-          if (!String(payload.variantLabel || "").trim()) return toast.error(t("أدخل اللون أو مواصفات المتغير", "Enter a color or variant description"));
-          payload.name = selected.name;
-        }
-        await api.post("/products", payload);
-      } else await api.put(`/products/${selected.id}`, form);
-      toast.success(t("تم الحفظ", "Saved successfully"));
-      setModal(null);
-      await load();
-    } catch (err) { toast.error(err.response?.data?.error || t("فشل الحفظ", "Save failed")); }
-  };
-
-  const handleAdjust = async () => {
-    try {
-      await api.post("/inventory/adjust", { productId: selected.id, branchId: activeBranch?.id, ...adjustForm });
-      toast.success("تم تعديل المخزون");
-      setModal(null);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || "فشل التعديل"); }
-  };
-
-  const handleAddIMEI = async () => {
-    const valid = imeiList.filter((i) => i.imei.trim());
-    if (!valid.length) return toast.error("أدخل رقم IMEI واحد على الأقل");
-    try {
-      await api.post("/inventory/imei", { productId: selected.id, branchId: activeBranch?.id, imeiList: valid });
-      toast.success("تم إضافة IMEI");
-      setModal(null);
-      load();
-    } catch (err) { toast.error(err.response?.data?.error || "فشل إضافة IMEI"); }
-  };
-
-  return (
-    <div className="erp-pro-page erp-inventory-page p-6" dir={en ? "ltr" : "rtl"}>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المخزون", "Inventory Management")}</h2>
-        <Btn onClick={openAdd}><Plus className="w-4 h-4" /> {t("منتج جديد", "New product")}</Btn>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-        <button onClick={() => setStockFilter("all")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "all" ? "border-indigo-300 bg-indigo-50 ring-1 ring-indigo-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
-          <p className="text-sm text-slate-500">{t("المنتجات المعروضة", "Products loaded")}</p>
-          <p className="mt-1 text-2xl font-extrabold text-slate-800">{products.length}</p>
-        </button>
-        <button onClick={() => setStockFilter("low")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "low" ? "border-amber-300 bg-amber-50 ring-1 ring-amber-100" : "border-slate-200 bg-white hover:bg-slate-50"}`}>
-          <p className="flex items-center gap-2 text-sm text-amber-700"><AlertTriangle className="h-4 w-4" />{t("مخزون منخفض", "Low stock")}</p>
-          <p className="mt-1 text-2xl font-extrabold text-amber-700">{inventorySummary.lowStock}</p>
-          <p className="mt-1 text-xs text-slate-500">{t("اضغط لعرض المنتجات التي تحتاج مراجعة", "Select to filter items needing review")}</p>
-        </button>
-        <button onClick={() => setStockFilter("out")} className={`rounded-2xl border p-4 text-right transition-colors ${stockFilter === "out" ? "border-rose-300 bg-rose-100 ring-1 ring-rose-100" : "border-rose-200 bg-rose-50 hover:bg-rose-100"}`}>
-          <p className="text-sm text-rose-700">{t("نفد المخزون", "Out of stock")}</p>
-          <p className="mt-1 text-2xl font-extrabold text-rose-700">{inventorySummary.outOfStock}</p>
-        </button>
-      </div>
-
-      {reorderSuggestions.length > 0 && (
-        <section className="mb-5 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-100 bg-amber-50 p-4">
-            <div>
-              <h3 className="font-bold text-amber-900">{t("اقتراحات إعادة الطلب", "Reorder suggestions")}</h3>
-              <p className="mt-1 text-xs text-amber-800">{t("اقتراح إرشادي: الكمية المستهدفة ضعف حد المخزون على الأقل، وليست أمر شراء تلقائيًا.", "Planning aid only: target stock is at least twice the low-stock threshold; this does not create a purchase order.")}</p>
-            </div>
-            <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-amber-800">{reorderSuggestions.length} {t("منتج", "products")}</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-slate-50 text-right text-xs text-slate-500">
-                <th className="px-4 py-3">{t("المنتج", "Product")}</th>
-                <th className="px-4 py-3">{t("المتاح", "On hand")}</th>
-                <th className="px-4 py-3">{t("حد التنبيه", "Low-stock limit")}</th>
-                <th className="px-4 py-3">{t("الكمية المقترحة", "Suggested quantity")}</th>
-                <th className="px-4 py-3">{t("إجراء", "Action")}</th>
-              </tr></thead>
-              <tbody>
-                {reorderSuggestions.slice(0, 20).map((product) => (
-                  <tr key={product.id} className="border-t border-slate-100">
-                    <td className="px-4 py-3"><div className="font-semibold text-slate-800">{product.name}</div><div className="text-xs text-slate-400">{product.sku}</div></td>
-                    <td className={`px-4 py-3 font-bold ${product.currentQuantity === 0 ? "text-rose-600" : "text-amber-700"}`}>{product.currentQuantity}</td>
-                    <td className="px-4 py-3">{product.minimumQuantity}</td>
-                    <td className="px-4 py-3 font-bold text-indigo-700">{product.suggestedQuantity}</td>
-                    <td className="px-4 py-3"><Btn variant="secondary" onClick={() => openEdit(product)}>{t("تعديل المنتج", "Edit product")}</Btn></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {reorderSuggestions.length > 20 && <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">{t("يتم عرض أول 20 منتجًا حسب أولوية النقص.", "Showing the first 20 products by stock urgency.")}</p>}
-        </section>
-      )}
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
-        <div className="p-4 border-b flex flex-col xl:flex-row gap-3">
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("ابحث بالاسم أو SKU أو الباركود أو العلامة التجارية...", "Search name, SKU, barcode or brand...")} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pr-9 pl-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          </div>
-          <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white min-w-[170px]">
-            <option value="all">{t("كل التصنيفات", "All categories")}</option>
-            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
-          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-slate-200 p-1" role="group" aria-label={t("طريقة عرض المنتجات", "Product view mode")}>
-            <button onClick={() => setViewMode("grid")} title={t("بطاقات كبيرة بالصورة", "Large image cards")} aria-pressed={viewMode === "grid"} className={`rounded-lg p-2 ${viewMode === "grid" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><LayoutGrid className="h-4 w-4" /></button>
-            <button onClick={() => setViewMode("compact")} title={t("قائمة بصورة صغيرة على الجانب", "Compact rows with side thumbnail")} aria-pressed={viewMode === "compact"} className={`rounded-lg p-2 ${viewMode === "compact" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><Rows3 className="h-4 w-4" /></button>
-            <button onClick={() => setViewMode("list")} title={t("جدول كامل", "Full table")} aria-pressed={viewMode === "list"} className={`rounded-lg p-2 ${viewMode === "list" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><ListIcon className="h-4 w-4" /></button>
-            <button onClick={() => setViewMode("plain")} title={t("قائمة بدون صور", "List without images")} aria-pressed={viewMode === "plain"} className={`rounded-lg p-2 ${viewMode === "plain" ? "bg-indigo-50 text-indigo-700" : "text-slate-500 hover:bg-slate-50"}`}><EyeOff className="h-4 w-4" /></button>
-          </div>
-          <button onClick={load} title={t("تحديث", "Refresh")} className="p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50"><RefreshCw className={`w-4 h-4 text-slate-500 ${loading ? "animate-spin" : ""}`} /></button>
-        </div>
-
-        {viewMode === "grid" ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 p-4">
-            {visibleProducts.map(p => {
-              const qty = quantityFor(p);
-              const lowStock = qty <= Number(p.lowStockQty ?? 5);
-              const variantPrices = (p.variants || []).map(variant => Number(variant.salePrice || 0));
-              const priceLabel = variantPrices.length
-                ? (Math.min(...variantPrices) === Math.max(...variantPrices)
-                  ? Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })
-                  : Math.min(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }) + " – " + Math.max(...variantPrices).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 }))
-                : Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 });
-              return <article key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg">
-                <div className="relative flex h-44 items-center justify-center bg-slate-50 p-3">
-                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <div className="flex flex-col items-center gap-2 text-slate-300"><Package className="h-12 w-12" /><span className="text-xs">{t("لا توجد صورة", "No image")}</span></div>}
-                  <span className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold ${p.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</span>
-                  {qty === 0 && <span className="absolute left-3 top-3 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700">{t("نفد المخزون", "Out of stock")}</span>}
-                </div>
-                <div className="space-y-3 p-4">
-                  <div className="min-h-[56px]"><h3 className="line-clamp-2 font-bold text-slate-800">{p.name}</h3><p className="mt-1 text-xs text-slate-400">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku}</p></div>
-                  <div className="flex items-end justify-between gap-2"><div><p className="text-xs text-slate-500">{t("سعر البيع", "Sale price")}</p><p className="text-xl font-extrabold text-indigo-700">{priceLabel} {t("ج.م", "EGP")}</p></div><div className="text-left"><p className="text-xs text-slate-500">{t("المتاح", "In stock")}</p><p className={`font-bold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{qty}</p></div></div>
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-3"><span className="max-w-[55%] truncate text-xs text-slate-500">{p.category?.name || t("بدون تصنيف", "Uncategorized")}</span><div className="flex gap-1"><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button>{!p.variants?.length && <button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>}{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600 hover:bg-blue-50" title="IMEI">IMEI</button>}</div></div>
-                  <div className="flex flex-wrap gap-2">
-                    <button onClick={() => navigate(`/products/${p.id}`)} className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100"><ExternalLink className="h-3.5 w-3.5" />{t("عرض التفاصيل", "View details")}</button>
-                    <button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-50 px-2.5 py-2 text-xs font-semibold text-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button>
-                    {p.variants?.length > 0 && <button onClick={() => toggleVariants(p.id)} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs">{t("المتغيرات", "Variants")} ({p.variants.length})</button>}
-                    <button onClick={() => handleDeleteProduct(p)} className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold text-rose-600"><Trash2 className="h-3.5 w-3.5" />{t("حذف", "Delete")}</button>
-                  </div>
-                  <>{expandedProducts[p.id] && p.variants?.length > 0 && <section className="mt-3 overflow-hidden rounded-2xl border border-indigo-100 bg-slate-50/80">
-  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100 bg-white px-4 py-3">
-    <div><h4 className="text-sm font-extrabold text-slate-800">{t("متغيرات المنتج", "Product variants")}</h4><p className="mt-1 text-xs text-slate-500">{t("كل متغير له باركود وسعر ومخزون مستقل", "Each variant has its own barcode, price and stock")}</p></div>
-    <div className="flex items-center gap-2"><span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{p.variants.length} {t("متغير", "variants")}</span><button onClick={() => openAddVariant(p)} className="inline-flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700"><Plus className="h-3.5 w-3.5" />{t("إضافة متغير", "Add variant")}</button></div>
-  </div>
-  <div className="space-y-2 p-3">
-    {p.variants.map(variant => {
-      const variantQty = Number(variant.inventory?.[0]?.quantity ?? 0);
-      const variantLow = variantQty <= Number(variant.lowStockQty ?? 5);
-      return <div key={variant.id} className="grid grid-cols-1 items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-50">{variant.imageUrl ? <img src={variant.imageUrl} alt={variant.variantLabel || variant.name} className="h-full w-full object-contain p-1" /> : <Package className="h-6 w-6 text-slate-300" />}</div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-extrabold text-slate-800">{variant.variantLabel || variant.name}</p><span className={variant.isActive === false ? "rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500" : "rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700"}>{variant.isActive === false ? t("معطل", "Inactive") : t("فعال", "Active")}</span>{variant.hasIMEI && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">IMEI</span>}</div>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500"><span>SKU: <b className="font-mono text-slate-700">{variant.sku || "—"}</b></span><span>{t("الباركود", "Barcode")}: <b className="font-mono text-slate-700">{variant.barcode || "—"}</b></span></div>
-            <div className="mt-2 flex flex-wrap items-center gap-3"><span className="text-sm font-extrabold text-indigo-700">{Number(variant.salePrice || 0).toLocaleString()} {t("ج.م", "EGP")}</span><span className="text-xs text-slate-500">{t("التكلفة", "Cost")}: {Number(variant.costPrice || 0).toLocaleString()}</span><span className={variantQty === 0 ? "rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700" : variantLow ? "rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700" : "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"}>{t("المخزون", "Stock")}: {variantQty}</span><span className="text-[11px] text-slate-400">{t("حد التنبيه", "Alert at")} {Number(variant.lowStockQty ?? 5)}</span></div>
-          </div>
-        </div>
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-2 sm:border-0 sm:pt-0">
-          <button onClick={() => openAdjust(variant)} className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-100 px-3 py-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-3.5 w-3.5" /><span>{t("المخزون", "Stock")}</span></button>
-          <button onClick={() => openEdit(variant)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button>
-          <button onClick={() => handleDeleteProduct(variant)} className="rounded-lg border border-rose-100 p-2 text-rose-600 hover:bg-rose-50" title={t("تعطيل المتغير", "Deactivate variant")}><Trash2 className="h-4 w-4" /></button>
-        </div>
-      </div>;
-    })}
-  </div>
-</section>}</>
-                </div>
-              </article>;
-            })}
-            {visibleProducts.length === 0 && !loading && <div className="col-span-full py-16 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
-          </div>
-        ) : viewMode === "compact" ? (
-          <div className="divide-y divide-slate-100 p-2 sm:p-3">
-            {visibleProducts.map(p => {
-              const qty = quantityFor(p);
-              const lowStock = qty <= Number(p.lowStockQty ?? 5);
-              return <article key={p.id} className="flex items-center gap-3 rounded-xl p-2 sm:gap-4 sm:p-3 hover:bg-slate-50">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-white sm:h-20 sm:w-20">
-                  {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <Package className="h-7 w-7 text-slate-300" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-800">{p.name}</h3><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge>{qty === 0 && <Badge color="red">{t("نافد", "Out")}</Badge>}</div>
-                  <p className="mt-1 truncate text-xs text-slate-500">{p.brand || t("بدون علامة تجارية", "No brand")} · {p.sku} · {p.category?.name || t("بدون تصنيف", "Uncategorized")}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"><span className="font-bold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</span><span className={`text-sm font-semibold ${qty === 0 ? "text-rose-600" : lowStock ? "text-amber-600" : "text-emerald-600"}`}>{t("المخزون:", "Stock:")} {qty}</span>{p.hasIMEI && <span className="text-xs text-blue-600">IMEI</span>}</div>
-                </div>
-                <div className="flex shrink-0 flex-col gap-1 sm:flex-row"><button onClick={() => navigate(`/products/${p.id}`)} className="rounded-lg border border-indigo-200 bg-indigo-50 p-2 text-indigo-700 hover:bg-indigo-100" title={t("عرض التفاصيل", "View details")}><ExternalLink className="h-4 w-4" /></button><button onClick={() => openEdit(p)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-white" title={t("تعديل المنتج", "Edit product")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg border border-slate-200 p-2 text-indigo-600 hover:bg-indigo-50" title={t("تعديل المخزون", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button>{p.hasIMEI && <button onClick={() => openIMEI(p)} className="rounded-lg border border-slate-200 p-2 text-blue-600" title="IMEI">IMEI</button>}</div>
-              </article>;
-            })}
-            {visibleProducts.length === 0 && !loading && <div className="py-14 text-center text-slate-400"><Package className="mx-auto mb-3 h-10 w-10" /><p>{t("لا توجد منتجات مطابقة للفلاتر", "No products match these filters")}</p></div>}
-          </div>
-        ) : viewMode === "plain" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="border-b bg-slate-50 text-right text-xs text-slate-500"><th className="px-4 py-3">{t("اسم المنتج", "Product name")}</th><th className="px-4 py-3">SKU</th><th className="px-4 py-3">{t("التصنيف", "Category")}</th><th className="px-4 py-3">{t("سعر البيع", "Sale price")}</th><th className="px-4 py-3">{t("المخزون", "Stock")}</th><th className="px-4 py-3">{t("الحالة", "Status")}</th><th className="px-4 py-3">{t("إجراءات", "Actions")}</th></tr></thead>
-              <tbody>{visibleProducts.map(p => { const qty = quantityFor(p); return <tr key={p.id} className="border-b hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-800">{p.name}</td><td className="px-4 py-3 font-mono text-slate-500">{p.sku}</td><td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td><td className="px-4 py-3 font-semibold text-indigo-700">{Number(p.salePrice || 0).toLocaleString(en ? "en-US" : "ar-EG", { maximumFractionDigits: 2 })} {t("ج.م", "EGP")}</td><td className={`px-4 py-3 font-bold ${qty === 0 ? "text-rose-600" : qty <= Number(p.lowStockQty ?? 5) ? "text-amber-600" : "text-emerald-600"}`}>{qty}</td><td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? t("فعال", "Active") : t("معطل", "Inactive")}</Badge></td><td className="px-4 py-3"><div className="flex gap-1"><button onClick={() => navigate(`/products/${p.id}`)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("عرض التفاصيل", "View details")}><ExternalLink className="h-4 w-4" /></button><button onClick={() => openEdit(p)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title={t("تعديل", "Edit")}><Edit2 className="h-4 w-4" /></button><button onClick={() => openAdjust(p)} className="rounded-lg p-1.5 text-indigo-600 hover:bg-indigo-50" title={t("تعديل الكمية", "Adjust stock")}><RefreshCw className="h-4 w-4" /></button></div></td></tr>; })}{visibleProducts.length === 0 && !loading && <tr><td colSpan={7} className="py-12 text-center text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>}</tbody>
-            </table>
-          </div>
-        ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-                <th className="px-4 py-3 font-semibold">{t("المنتج", "Product")}</th>
-                <th className="px-4 py-3 font-semibold">SKU</th>
-                <th className="px-4 py-3 font-semibold">{t("التصنيف", "Category")}</th>
-                <th className="px-4 py-3 font-semibold">{t("سعر البيع", "Sale price")}</th>
-                <th className="px-4 py-3 font-semibold">{t("الكمية", "Quantity")}</th>
-                <th className="px-4 py-3 font-semibold">IMEI</th>
-                <th className="px-4 py-3 font-semibold">{t("الحالة", "Status")}</th>
-                <th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleProducts.map((p) => {
-                const qty = quantityFor(p);
-                const lowStock = qty <= p.lowStockQty;
-                return (
-                  <tr key={p.id} className="border-b hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-[220px]">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50 flex items-center justify-center">
-                          {p.imageUrl ? <img src={p.imageUrl} alt={p.name} loading="lazy" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; }} /> : <Package className="h-6 w-6 text-slate-300" />}
-                        </div>
-                        <div><p className="font-semibold text-slate-800">{p.name}</p>{p.brand && <p className="text-xs text-slate-400">{p.brand}</p>}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-slate-600">{p.sku}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.category?.name || "—"}</td>
-                    <td className="px-4 py-3 font-semibold text-indigo-600">{parseFloat(p.salePrice).toLocaleString()} ج</td>
-                    <td className="px-4 py-3">
-                      <span className={`font-bold ${qty === 0 ? "text-red-600" : lowStock ? "text-amber-600" : "text-green-600"}`}>{qty}</span>
-                      {lowStock && qty > 0 && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 inline mr-1" />}
-                    </td>
-                    <td className="px-4 py-3">{p.hasIMEI ? <Badge color="blue">IMEI</Badge> : <span className="text-slate-400 text-xs">—</span>}</td>
-                    <td className="px-4 py-3"><Badge color={p.isActive ? "green" : "red"}>{p.isActive ? "فعال" : "معطل"}</Badge></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <button onClick={() => openEdit(p)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500" title="تعديل"><Edit2 className="w-4 h-4" /></button>
-                        <button onClick={() => openAdjust(p)} className="p-1.5 hover:bg-indigo-50 rounded-lg text-indigo-500 text-xs font-medium px-2">{t("تعديل كمية", "Adjust quantity")}</button>
-                        {p.hasIMEI && <button onClick={() => openIMEI(p)} className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-500 text-xs font-medium px-2">+ IMEI</button>}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {products.length === 0 && !loading && (
-                <tr><td colSpan={8} className="text-center py-12 text-slate-400">{t("لا توجد منتجات", "No products found")}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        )}
-      </div>
-
-      {/* Add/Edit Modal */}
-      {(modal === "add" || modal === "edit" || modal === "variantAdd") && (
-        <Modal size={modal === "variantAdd" ? "xl" : "lg"} title={modal === "add" ? t("إضافة منتج أساسي", "Add parent product") : modal === "variantAdd" ? t("إضافة متغير للمنتج", "Add product variant") : t("تعديل المنتج", "Edit product")} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleSave}>{t("حفظ", "Save")}</Btn></>}>
-          <div className="space-y-4">
-            {modal === "variantAdd" && <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-gradient-to-l from-indigo-50 to-white p-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700"><Layers3 className="h-6 w-6" /></div>
-              <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-indigo-600">{t("المنتج الأساسي", "Parent product")}</p><p className="truncate text-base font-extrabold text-slate-900">{selected?.name || form.name}</p><p className="mt-1 text-xs text-slate-500">{t("أدخل مواصفات هذا المتغير فقط؛ السعر والباركود والمخزون سيتم تتبعها بشكل مستقل.", "Enter this variant's details; price, barcode and stock are tracked independently.")}</p></div>
-              <span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-bold text-indigo-700 sm:inline-flex">{selected?.variants?.length || 0} {t("متغير حالي", "existing variants")}</span>
-            </div>}
-            <Field label="اسم المنتج *"><Input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="اسم المنتج" /></Field>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {modal === "variantAdd" ? <div className="space-y-1"><div className="flex items-center justify-between gap-2"><label className="text-sm font-medium text-slate-700">SKU * <span className="text-xs font-normal text-slate-400">{t("كود فريد لكل نسخة","Unique per variant")}</span></label><button type="button" onClick={() => { const base = String(selected?.sku || "ITEM").toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 18) || "ITEM"; const spec = String(form.variantLabel || "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 12); setForm(current => ({ ...current, sku: base + "-V" + (spec ? "-" + spec : "") + "-" + Date.now().toString().slice(-4) })); }} className="text-xs font-bold text-indigo-700 hover:text-indigo-900">{t("توليد كود تلقائي","Generate SKU")}</button></div><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="PARENT-VARIANT-001" /><p className="text-xs text-slate-500">{t("يجب أن يكون الكود مختلفًا عن المنتج وكل النسخ الأخرى.","Must be different from the parent and every other variant.")}</p></div> : <Field label="SKU *"><Input value={form.sku || ""} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="SKU-001" /></Field>}
-              <Field label="باركود"><Input value={form.barcode || ""} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="1234567890" /></Field>
-            </div>
-            {modal === "variantAdd" && <div className="rounded-2xl border border-violet-200 bg-violet-50/70 p-4">
-              <div className="mb-3 flex items-center gap-2"><div className="rounded-lg bg-violet-100 p-2 text-violet-700"><Layers3 className="h-4 w-4" /></div><div><h4 className="text-sm font-extrabold text-violet-950">{t("مواصفات المتغير", "Variant specification")}</h4><p className="text-xs text-violet-700">{t("اكتب وصفًا واضحًا يظهر للكاشير عند البيع", "Use a clear label cashiers will see at checkout")}</p></div></div>
-              <Field label={t("اللون / السعة / المواصفات *", "Color / storage / specification *")}><Input value={form.variantLabel || ""} onChange={e => setForm({ ...form, variantLabel: e.target.value })} placeholder={t("مثال: تيتانيوم طبيعي · 256GB", "e.g. Natural Titanium · 256GB")} /></Field>
-              <div className="mt-3 flex flex-wrap gap-2">{["أسود","أبيض","أزرق","أخضر","128GB","256GB","512GB"].map(value => <button key={value} type="button" onClick={() => setForm(current => ({ ...current, variantLabel: current.variantLabel ? current.variantLabel + " · " + value : value }))} className="rounded-full border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 hover:border-violet-400 hover:bg-violet-100">{value}</button>)}</div>
-              <p className="mt-3 text-xs leading-5 text-violet-700">{t("استخدم الاختصارات ثم عدّل النص. كل نسخة لها SKU وسعر وتكلفة وصورة وحد مخزون مستقل.", "Use a quick option then edit the label. Each variant has its own SKU, price, cost, image and low-stock threshold.")}</p>
-            </div>}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="سعر البيع"><Input type="number" value={form.salePrice || ""} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} /></Field>
-              <Field label="سعر التكلفة"><Input type="number" value={form.costPrice || ""} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} /></Field>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="التصنيف">
-                <Select value={form.categoryId || ""} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                  <option value="">{t("بدون تصنيف", "Uncategorized")}</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </Select>
-              </Field>
-              <Field label="العلامة التجارية"><Input value={form.brand || ""} onChange={(e) => setForm({ ...form, brand: e.target.value })} /></Field>
-            </div>
-            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3"><div><h4 className="font-semibold text-slate-800">{t("صورة المنتج", "Product image")}</h4><p className="mt-1 text-xs text-slate-500">{t("ارفع صورة من جهازك أو الصق رابط صورة مباشر", "Upload an image or paste a direct image URL")}</p></div>{form.imageUrl && <button type="button" onClick={() => setForm({ ...form, imageUrl: "" })} className="text-xs font-medium text-rose-600 hover:underline">{t("إزالة الصورة", "Remove image")}</button>}</div>
-              <div className="flex flex-col sm:flex-row items-start gap-4">
-                <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">{form.imageUrl ? <img src={form.imageUrl} alt="معاينة صورة المنتج" className="h-full w-full object-contain" onError={e => { e.currentTarget.style.display = "none"; e.currentTarget.parentElement?.querySelector("[data-image-fallback]")?.classList.remove("hidden"); }} /> : null}<div data-image-fallback className={"text-center text-slate-300 " + (form.imageUrl ? "hidden" : "")}><ImagePlus className="mx-auto h-8 w-8" /><span className="mt-1 block text-xs">{t("ارفع صورة أو الصق رابطًا صالحًا", "Upload an image or paste a valid URL")}</span></div></div>
-                <div className="min-w-0 flex-1 space-y-3">
-                  <label className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm font-semibold text-indigo-700 hover:bg-indigo-50 ${imageUploading ? "pointer-events-none opacity-50" : ""}`}><UploadCloud className="h-4 w-4" />{imageUploading ? t("جاري تجهيز الصورة...", "Preparing image...") : t("اختيار صورة من الجهاز", "Choose image") }<input type="file" accept="image/*" className="hidden" disabled={imageUploading} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; handleImageUpload(file); }} /></label>
-                  <Field label={t("رابط الصورة المباشر", "Direct image URL")}><Input value={form.imageUrl || ""} onChange={e => setForm({ ...form, imageUrl: e.target.value })} placeholder="https://example.com/product.jpg" /></Field>
-                  <p className="text-xs leading-5 text-slate-500">{t("يتم ضغط الصورة تلقائيًا لتقليل الحجم. في حالة عدم إعداد خدمة صور خارجية، تُحفظ نسخة صغيرة مع بيانات المنتج.", "Images are compressed automatically. Without an external image service, a small compressed copy is stored with the product record.")}</p>
-                </div>
-              </div>
-            </div>
-            <Field label={t("حد المخزون المنخفض", "Low stock threshold")}><Input type="number" min="0" value={form.lowStockQty ?? 5} onChange={(e) => setForm({ ...form, lowStockQty: Math.max(0, parseInt(e.target.value, 10) || 0) })} /></Field>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.hasIMEI || false} onChange={(e) => setForm({ ...form, hasIMEI: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-medium text-slate-700">{t("يتطلب رقم IMEI", "IMEI required")}</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.isActive !== false} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="w-4 h-4 rounded accent-indigo-600" />
-                <span className="text-sm font-medium text-slate-700">{t("فعال", "Active")}</span>
-              </label>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      {/* Adjust Modal */}
-      {modal === "adjust" && (
-        <Modal title={`تعديل مخزون: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleAdjust}>{t("تنفيذ", "Apply")}</Btn></>}>
-          <div className="space-y-3">
-            <Field label="نوع التعديل">
-              <Select value={adjustForm.type} onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })}>
-                <option value="ADD">{t("إضافة للمخزون", "Add to stock")}</option>
-                <option value="REMOVE">{t("خصم من المخزون", "Remove from stock")}</option>
-                <option value="SET">{t("تحديد كمية محددة", "Set exact quantity")}</option>
-              </Select>
-            </Field>
-            <Field label="الكمية"><Input type="number" value={adjustForm.quantity} onChange={(e) => setAdjustForm({ ...adjustForm, quantity: parseInt(e.target.value) })} min={1} /></Field>
-            <Field label="السبب"><Input value={adjustForm.reason} onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })} placeholder="سبب التعديل..." /></Field>
-          </div>
-        </Modal>
-      )}
-
-      {/* IMEI Modal */}
-      {modal === "imei" && (
-        <Modal title={`إضافة IMEI: ${selected?.name}`} onClose={() => setModal(null)} footer={<><Btn variant="secondary" onClick={() => setModal(null)}>{t("إلغاء", "Cancel")}</Btn><Btn onClick={handleAddIMEI}>{t("حفظ", "Save")}</Btn></>}>
-          <div className="space-y-3">
-            {imeiList.map((item, i) => (
-              <div key={i} className="grid grid-cols-3 gap-2 items-center">
-                <Input value={item.imei} onChange={(e) => { const l = [...imeiList]; l[i].imei = e.target.value; setImeiList(l); }} placeholder="رقم IMEI *" />
-                <Input value={item.color} onChange={(e) => { const l = [...imeiList]; l[i].color = e.target.value; setImeiList(l); }} placeholder="اللون" />
-                <Input value={item.storage} onChange={(e) => { const l = [...imeiList]; l[i].storage = e.target.value; setImeiList(l); }} placeholder="السعة" />
-              </div>
-            ))}
-            <button onClick={() => setImeiList([...imeiList, { imei: "", color: "", storage: "" }])} className="text-indigo-600 text-sm hover:underline flex items-center gap-1"><Plus className="w-4 h-4" /> إضافة سطر</button>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════
-// SALES
-// ══════════════════════════════════════════════════════════════
 export function Sales() {
   const { confirm } = useDialog();
   const language = useStore((state) => state.language);
@@ -548,6 +11,9 @@ export function Sales() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [viewMode, setViewMode] = useState("table");
 
   const load = async () => {
     setLoading(true);
@@ -580,6 +46,20 @@ export function Sales() {
     INSTAPAY: "إنستاباي",
     MIXED: "مختلط",
   };
+
+
+  const filteredInvoices = invoices.filter((inv) => {
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || [inv.invoiceNumber, inv.customer?.name, inv.cashier?.name, inv.paymentMethod]
+      .some((value) => String(value || "").toLowerCase().includes(q));
+    const matchesPayment = paymentFilter === "ALL" || inv.paymentMethod === paymentFilter;
+    return matchesSearch && matchesPayment;
+  });
+  const pageRevenue = invoices.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+  const pagePaid = invoices.reduce((sum, inv) => sum + Number(inv.amountPaid || 0), 0);
+  const pageOutstanding = invoices.reduce((sum, inv) => sum + Math.max(0, Number(inv.total || 0) - Number(inv.amountPaid || 0)), 0);
+  const currency = (value) => Number(value || 0).toLocaleString(en ? "en-US" : "ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const paymentLabel = (method) => PM_AR[method] || method || t("غير محدد", "Unspecified");
 
   const handleDelete = async (invoice) => {
     const ok = await confirm(
@@ -755,151 +235,48 @@ export function Sales() {
   };
 
   return (
-    <div className="p-6" dir={en ? "ltr" : "rtl"}>
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">{t("سجل المبيعات", "Sales history")}</h2>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100">
-        <div className="p-4 border-b flex gap-3 flex-wrap">
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => {
-              setPage(1);
-              setFrom(e.target.value);
-            }}
-            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <span className="text-slate-400 self-center">إلى</span>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => {
-              setPage(1);
-              setTo(e.target.value);
-            }}
-            className="border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <button
-            onClick={load}
-            className="border border-slate-200 px-4 py-2 rounded-xl text-sm hover:bg-slate-50"
-          >
-            بحث
-          </button>
-          <span className="mr-auto text-sm text-slate-500 self-center">{total} فاتورة</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-slate-50 text-right text-slate-500 text-xs">
-                <th className="px-4 py-3 font-semibold">{t("رقم الفاتورة", "Invoice number")}</th>
-                <th className="px-4 py-3 font-semibold">{t("العميل", "Customer")}</th>
-                <th className="px-4 py-3 font-semibold">{t("الكاشير", "Cashier")}</th>
-                <th className="px-4 py-3 font-semibold">{t("طريقة الدفع", "Payment method")}</th>
-                <th className="px-4 py-3 font-semibold">{t("الإجمالي", "Total")}</th>
-                <th className="px-4 py-3 font-semibold">{t("التاريخ", "Date")}</th>
-                <th className="px-4 py-3 font-semibold">{t("إجراءات", "Actions")}</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-b hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3 font-mono text-indigo-600 font-semibold">
-                    {inv.invoiceNumber}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {inv.customer?.name || "عميل عادي"}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{inv.cashier?.name}</td>
-                  <td className="px-4 py-3">
-                    <Badge color="blue">{PM_AR[inv.paymentMethod] || inv.paymentMethod}</Badge>
-                  </td>
-                  <td className="px-4 py-3 font-bold text-green-600">
-                    {parseFloat(inv.total).toLocaleString()} ج
-                  </td>
-                  <td className="px-4 py-3 text-slate-500 text-xs">
-                    {new Date(inv.createdAt).toLocaleString("ar-EG")}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <button
-                        onClick={() => setSelected(inv)}
-                        className="text-indigo-600 hover:bg-indigo-50 px-2 py-1.5 rounded-lg text-xs font-medium"
-                      >
-                        عرض
-                      </button>
-                      <button
-                        onClick={() => handlePrint(inv.id)}
-                        className="text-blue-600 hover:bg-blue-50 px-2 py-1.5 rounded-lg text-xs font-medium"
-                        title="طباعة الفاتورة"
-                      >
-                        🖨 طباعة
-                      </button>
-                      <button
-                        onClick={() => handleDelete(inv)}
-                        className="text-red-600 hover:bg-red-50 px-2 py-1.5 rounded-lg text-xs font-medium"
-                        title="حذف الفاتورة"
-                      >
-                        🗑 حذف
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {invoices.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-400">
-                    لا توجد فواتير
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {total > 20 && (
-          <div className="p-4 flex justify-center gap-2">
-            <button
-              disabled={page === 1}
-              onClick={() => setPage(page - 1)}
-              className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50"
-            >
-              السابق
-            </button>
-            <span className="text-sm text-slate-500 self-center">صفحة {page}</span>
-            <button
-              disabled={page * 20 >= total}
-              onClick={() => setPage(page + 1)}
-              className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40 hover:bg-slate-50"
-            >
-              التالي
-            </button>
+    <div className="min-h-full bg-slate-50/70 p-4 sm:p-6 lg:p-8" dir={en ? "ltr" : "rtl"}>
+      <div className="mx-auto max-w-[1600px] space-y-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-indigo-600"><span className="h-2 w-2 rounded-full bg-indigo-600"/>{t("المبيعات","SALES")}</div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">{t("سجل المبيعات","Sales history")}</h1>
           </div>
-        )}
-      </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:text-indigo-700 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading?"animate-spin":""}`}/>{t("تحديث","Refresh")}</button>
+            <button onClick={()=>window.print()} className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-indigo-700"><Printer className="h-4 w-4"/>{t("طباعة التقرير","Print report")}</button>
+          </div>
+        </div>
 
-      {selected && (
-        <Modal
-          size="xl"
-          title={`${t("فاتورة", "Invoice")}: ${selected.invoiceNumber}`}
-          onClose={() => setSelected(null)}
-          footer={
-            <>
-              <Btn variant="secondary" onClick={() => setSelected(null)}>
-                إغلاق
-              </Btn>
-              <Btn onClick={() => handlePrint(selected.id)}>🖨 طباعة</Btn>
-              <Btn variant="danger" onClick={() => handleDelete(selected)}>
-                🗑 حذف
-              </Btn>
-            </>
-          }
-        >
-          <InvoiceDetail id={selected.id} />
-        </Modal>
-      )}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="relative overflow-hidden rounded-2xl bg-slate-950 p-5 text-white shadow-lg shadow-slate-200"><div className="absolute -end-6 -top-8 h-28 w-28 rounded-full bg-indigo-500/20 blur-2xl"/><div className="relative flex items-start justify-between"><div><p className="text-sm font-semibold text-slate-300">{t("عدد الفواتير","Invoices")}</p><p className="mt-3 text-3xl font-black tabular-nums">{total.toLocaleString()}</p><p className="mt-1 text-xs text-slate-400">{t("حسب الفلاتر الحالية","Current date range")}</p></div><div className="rounded-xl bg-white/10 p-3"><FileText className="h-5 w-5"/></div></div></div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm font-semibold text-slate-500">{t("إجمالي المبيعات","Sales total")}</p><p className="mt-3 text-2xl font-black text-slate-900 tabular-nums">{currency(pageRevenue)} <span className="text-sm font-bold text-slate-400">{t("ج.م","EGP")}</span></p><p className="mt-1 text-xs text-slate-400">{t("للفواتير المعروضة في الصفحة","Loaded page only")}</p></div><div className="rounded-xl bg-indigo-50 p-3 text-indigo-700"><TrendingUp className="h-5 w-5"/></div></div></div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm font-semibold text-slate-500">{t("المبالغ المحصلة","Collected")}</p><p className="mt-3 text-2xl font-black text-emerald-700 tabular-nums">{currency(pagePaid)} <span className="text-sm font-bold text-slate-400">{t("ج.م","EGP")}</span></p><p className="mt-1 text-xs text-slate-400">{t("المدفوع على الفواتير المعروضة","Paid on loaded invoices")}</p></div><div className="rounded-xl bg-emerald-50 p-3 text-emerald-700"><Wallet className="h-5 w-5"/></div></div></div>
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm"><div className="flex items-start justify-between"><div><p className="text-sm font-semibold text-slate-500">{t("المتبقي للتحصيل","Outstanding")}</p><p className="mt-3 text-2xl font-black text-amber-700 tabular-nums">{currency(pageOutstanding)} <span className="text-sm font-bold text-slate-400">{t("ج.م","EGP")}</span></p><p className="mt-1 text-xs text-slate-400">{t("على الفواتير المعروضة","For loaded invoices")}</p></div><div className="rounded-xl bg-amber-50 p-3 text-amber-700"><Clock className="h-5 w-5"/></div></div></div>
+        </div>
+
+        <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-4 sm:p-5">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-500">{t("بحث","Search")}</span><div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-4 focus-within:ring-indigo-50"><Search className="h-4 w-4 shrink-0 text-slate-400"/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("رقم الفاتورة، العميل، الكاشير…","Invoice, customer, cashier…")} className="min-w-0 w-full bg-transparent py-3 text-sm outline-none"/></div></label>
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-500">{t("من تاريخ","From date")}</span><input type="date" value={from} onChange={e=>{setPage(1);setFrom(e.target.value)}} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"/></label>
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-500">{t("إلى تاريخ","To date")}</span><input type="date" value={to} onChange={e=>{setPage(1);setTo(e.target.value)}} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"/></label>
+                <label className="block"><span className="mb-1.5 block text-xs font-bold text-slate-500">{t("طريقة الدفع","Payment method")}</span><select value={paymentFilter} onChange={e=>setPaymentFilter(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-50"><option value="ALL">{t("كل طرق الدفع","All methods")}</option>{Object.entries(PM_AR).map(([key,label])=><option key={key} value={key}>{en?({CASH:"Cash",CARD:"Card",BANK_TRANSFER:"Bank transfer",VODAFONE_CASH:"Vodafone Cash",INSTAPAY:"InstaPay",MIXED:"Mixed"}[key]):label}</option>)}</select></label>
+              </div>
+              <div className="flex items-center justify-between gap-3 xl:pb-0.5"><div className="flex rounded-xl border border-slate-200 bg-slate-50 p-1"><button onClick={()=>setViewMode("table")} className={`rounded-lg px-3 py-2 text-xs font-bold ${viewMode==="table"?"bg-white text-indigo-700 shadow-sm":"text-slate-500"}`}><Rows3 className="me-1 inline h-4 w-4"/>{t("جدول","Table")}</button><button onClick={()=>setViewMode("cards")} className={`rounded-lg px-3 py-2 text-xs font-bold ${viewMode==="cards"?"bg-white text-indigo-700 shadow-sm":"text-slate-500"}`}><LayoutGrid className="me-1 inline h-4 w-4"/>{t("بطاقات","Cards")}</button></div><span className="whitespace-nowrap text-xs font-semibold text-slate-400">{filteredInvoices.length} / {invoices.length}</span></div>
+            </div>
+          </div>
+
+          {loading ? <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-slate-500"><span className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600"/><span className="text-sm font-semibold">{t("جاري تحميل المبيعات…","Loading sales…")}</span></div>
+          : filteredInvoices.length===0 ? <div className="flex min-h-72 flex-col items-center justify-center px-6 text-center"><div className="mb-4 rounded-2xl bg-slate-100 p-4 text-slate-400"><Search className="h-7 w-7"/></div><h3 className="text-lg font-black text-slate-800">{t("لا توجد نتائج","No results found")}</h3><p className="mt-1 text-sm text-slate-500">{t("جرّب تغيير البحث أو الفترة المحددة","Try changing your search or date range")}</p><button onClick={()=>{setSearch("");setPaymentFilter("ALL");setFrom("");setTo("");setPage(1)}} className="mt-4 rounded-xl border border-slate-200 px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50">{t("مسح الفلاتر","Clear filters")}</button></div>
+          : viewMode==="table" ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-start text-sm"><thead><tr className="border-b border-slate-100 bg-slate-50/80 text-xs text-slate-500"><th className="px-5 py-4 font-bold">{t("الفاتورة","Invoice")}</th><th className="px-5 py-4 font-bold">{t("العميل","Customer")}</th><th className="px-5 py-4 font-bold">{t("الكاشير","Cashier")}</th><th className="px-5 py-4 font-bold">{t("الدفع","Payment")}</th><th className="px-5 py-4 font-bold">{t("الإجمالي","Total")}</th><th className="px-5 py-4 font-bold">{t("الحالة","Status")}</th><th className="px-5 py-4 font-bold">{t("التاريخ","Date")}</th><th className="px-5 py-4 font-bold">{t("إجراءات","Actions")}</th></tr></thead><tbody>{filteredInvoices.map(inv=>{const due=Math.max(0,Number(inv.total||0)-Number(inv.amountPaid||0));const paid=due<=0.009;return <tr key={inv.id} className="border-b border-slate-100 transition hover:bg-indigo-50/30"><td className="px-5 py-4"><div className="font-mono font-extrabold text-indigo-700">{inv.invoiceNumber}</div><div className="mt-1 text-[11px] text-slate-400">{inv.items?.length||0} {t("صنف","items")}</div></td><td className="px-5 py-4"><div className="font-bold text-slate-800">{inv.customer?.name||t("عميل نقدي","Walk-in")}</div><div className="mt-1 text-xs text-slate-400">{inv.customer?.phone||"—"}</div></td><td className="px-5 py-4 text-slate-600">{inv.cashier?.name||"—"}</td><td className="px-5 py-4"><span className="inline-flex rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-600">{paymentLabel(inv.paymentMethod)}</span></td><td className="px-5 py-4"><div className="font-black tabular-nums text-slate-900">{currency(inv.total)} <span className="text-[10px] font-semibold text-slate-400">{t("ج.م","EGP")}</span></div>{due>0.009&&<div className="mt-1 text-[11px] font-semibold text-amber-700">{t("متبقي","Due")}: {currency(due)}</div>}</td><td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-bold ${paid?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}><span className={`h-1.5 w-1.5 rounded-full ${paid?"bg-emerald-500":"bg-amber-500"}`}/>{paid?t("مدفوعة","Paid"):t("غير مكتملة","Partially paid")}</span></td><td className="px-5 py-4 text-xs text-slate-500">{new Date(inv.createdAt).toLocaleString(en?"en-US":"ar-EG")}</td><td className="px-5 py-4"><div className="flex flex-wrap gap-1"><button onClick={()=>setSelected(inv)} className="rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100">{t("عرض","View")}</button><button onClick={()=>handlePrint(inv.id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"><Printer className="me-1 inline h-3.5 w-3.5"/>{t("طباعة","Print")}</button><button onClick={()=>handleDelete(inv)} className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-100">{t("حذف","Delete")}</button></div></td></tr>})}</tbody></table></div>
+          : <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">{filteredInvoices.map(inv=>{const due=Math.max(0,Number(inv.total||0)-Number(inv.amountPaid||0));return <article key={inv.id} className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg"><div className="flex items-start justify-between gap-3"><div><p className="font-mono text-sm font-black text-indigo-700">{inv.invoiceNumber}</p><h3 className="mt-1 text-base font-black text-slate-900">{inv.customer?.name||t("عميل نقدي","Walk-in")}</h3><p className="mt-1 text-xs text-slate-400">{new Date(inv.createdAt).toLocaleString(en?"en-US":"ar-EG")}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${due<=0.009?"bg-emerald-50 text-emerald-700":"bg-amber-50 text-amber-700"}`}>{due<=0.009?t("مدفوعة","Paid"):t("متبقي","Due")}</span></div><div className="my-4 grid grid-cols-2 gap-2"><div className="rounded-xl bg-slate-50 p-3"><p className="text-xs text-slate-500">{t("الإجمالي","Total")}</p><p className="mt-1 font-black tabular-nums">{currency(inv.total)} {t("ج.م","EGP")}</p></div><div className="rounded-xl bg-emerald-50 p-3"><p className="text-xs text-emerald-700">{t("المدفوع","Paid")}</p><p className="mt-1 font-black tabular-nums text-emerald-800">{currency(inv.amountPaid)}</p></div></div><div className="flex items-center justify-between gap-2"><span className="text-xs text-slate-500">{paymentLabel(inv.paymentMethod)}</span><div className="flex gap-1"><button onClick={()=>setSelected(inv)} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white">{t("التفاصيل","Details")}</button><button onClick={()=>handlePrint(inv.id)} className="rounded-lg border px-3 py-2 text-xs font-bold text-slate-600"><Printer className="h-4 w-4"/></button></div></div></article>})}</div>}
+
+          <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs font-medium text-slate-500">{t("عرض","Showing")} <strong className="text-slate-800">{invoices.length?((page-1)*20+1):0}–{Math.min(page*20,total)}</strong> {t("من","of")} <strong className="text-slate-800">{total}</strong> {t("فاتورة","invoices")}</p><div className="flex items-center gap-2"><button disabled={page===1||loading} onClick={()=>setPage(p=>Math.max(1,p-1))} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40">{t("السابق","Previous")}</button><span className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white">{page}</span><button disabled={page*20>=total||loading} onClick={()=>setPage(p=>p+1)} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-40">{t("التالي","Next")}</button></div></div>
+        </section>
+      </div>
+      {selected && <Modal size="xl" title={`${t("فاتورة","Invoice")}: ${selected.invoiceNumber}`} onClose={()=>setSelected(null)} footer={<><Btn variant="secondary" onClick={()=>setSelected(null)}>{t("إغلاق","Close")}</Btn><Btn onClick={()=>handlePrint(selected.id)}>{t("طباعة","Print")}</Btn><Btn variant="danger" onClick={()=>handleDelete(selected)}>{t("حذف","Delete")}</Btn></>}><InvoiceDetail id={selected.id}/></Modal>}
     </div>
   );
 }
