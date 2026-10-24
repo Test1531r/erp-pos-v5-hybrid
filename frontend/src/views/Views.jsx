@@ -1347,9 +1347,17 @@ export function Users() {
 
   return (
     <div className="p-6" dir={en ? "ltr" : "rtl"}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-slate-800">{t("إدارة المستخدمين", "User management")}</h2>
-        <Btn onClick={() => { setForm({ role: "CASHIER", isActive: true, password: "", maxDiscountPct: 15 }); setModal("add"); }}><Plus className="w-4 h-4" /> مستخدم جديد</Btn>
+      <div className="flex items-center justify-between mb-6 gap-3">
+        <div><h2 className="text-2xl font-bold text-slate-800">{t("إدارة المستخدمين", "User management")}</h2><p className="text-sm text-slate-500 mt-1">{t("ملخص أداء كل موظف وإدارة حساباته", "Employee performance summaries and account administration")}</p></div>
+        <Btn onClick={() => { setForm({ role: "CASHIER", isActive: true, password: "", maxDiscountPct: 15 }); setModal("add"); }}><Plus className="w-4 h-4" /> {t("مستخدم جديد", "New user")}</Btn>
+      </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        {[
+          { label: t("إجمالي المستخدمين", "Total users"), value: users.length, color: "text-indigo-700" },
+          { label: t("الحسابات النشطة", "Active accounts"), value: users.filter(x => x.isActive).length, color: "text-emerald-700" },
+          { label: t("عمليات البيع", "Sales"), value: users.reduce((n,x)=>n+Number(x.salesCount||0),0), color: "text-sky-700" },
+          { label: t("الاسترجاعات", "Returns"), value: users.reduce((n,x)=>n+Number(x.returnsCount||0),0), color: "text-amber-700" },
+        ].map(card => <div key={card.label} className="rounded-2xl border bg-white p-4 shadow-sm"><div className="text-sm text-slate-500">{card.label}</div><div className={"mt-2 text-2xl font-bold " + card.color}>{Number(card.value).toLocaleString(en ? "en-US" : "ar-EG")}</div></div>)}
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <table className="w-full min-w-[1050px] text-sm">
