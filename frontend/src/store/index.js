@@ -130,47 +130,39 @@ export const useStore = create(
       },
 
       // ── PRODUCTS ──────────────────────────
-     fetchProducts: async (params = {}) => {
-  try {
-    const { activeBranch } = get();
+      fetchProducts: async (params = {}) => {
+        try {
+          const { activeBranch } = get();
+          const base = new URLSearchParams();
+          if (activeBranch?.id) base.set("branchId", activeBranch.id);
+          // The API caps a page at 100 records. Fetch every page so POS never silently
+          // drops products when a catalog grows beyond the first page.
+          base.set("limit", "100");
+          if (params.search && params.search.trim()) base.set("search", params.search.trim());
+          if (params.categoryId) base.set("categoryId", params.categoryId);
 
-    const q = new URLSearchParams();
+          const first = await api.get(`/products?${base.toString()}&page=1`);
+          const firstData = first.data || {};
+          const allProducts = [...(Array.isArray(firstData.products) ? firstData.products : [])];
+          const pages = Math.max(1, Number(firstData.pages || 1));
+          for (let page = 2; page <= pages; page++) {
+            const response = await api.get(`/products?${base.toString()}&page=${page}`);
+            if (Array.isArray(response.data?.products)) allProducts.push(...response.data.products);
+          }
 
-    if (activeBranch?.id) {
-      q.set("branchId", activeBranch.id);
-    }
-
-    q.set("limit", "80");
-
-    if (params.search && params.search.trim()) {
-      q.set("search", params.search.trim());
-    }
-
-    if (params.categoryId) {
-      q.set("categoryId", params.categoryId);
-    }
-
-    const { data } = await api.get(`/products?${q.toString()}`);
-
-    const map = { ...get().inventoryMap };
-
-    for (const p of data.products || []) {
-      for (const inv of p.inventory || []) {
-        map[`${p.id}_${inv.branchId}`] = inv.quantity;
-      }
-    }
-
-    set({
-      products: data.products || [],
-      inventoryMap: map,
-    });
-
-    return data.products || [];
-  } catch (err) {
-    console.error("fetchProducts error:", err);
-    return [];
-  }
-},
+          const map = { ...get().inventoryMap };
+          for (const product of allProducts) {
+            for (const inv of product.inventory || []) {
+              map[`${product.id}_${inv.branchId}`] = Number(inv.quantity || 0);
+            }
+          }
+          set({ products: allProducts, inventoryMap: map });
+          return allProducts;
+        } catch (err) {
+          console.error("fetchProducts error:", err);
+          return [];
+        }
+      },
 
       fetchCategories: async () => {
         try {
