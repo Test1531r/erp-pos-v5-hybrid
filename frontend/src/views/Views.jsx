@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore, api } from "../store/index.js";
-import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3, Printer, FileText, TrendingUp, Wallet, Clock, Users } from "lucide-react";
+import { Plus, Search, Edit2, X, Check, Package, RefreshCw, AlertTriangle, ChevronDown, ImagePlus, LayoutGrid, List as ListIcon, ExternalLink, UploadCloud, Rows3, EyeOff, Trash2, ChevronRight, Layers3, Printer, FileText, TrendingUp, Wallet, Clock } from "lucide-react";
 import toast from "react-hot-toast";
 import { useDialog } from "../components/InteractionProvider.jsx";
 
@@ -960,7 +960,7 @@ export function Customers() {
               <div className="flex justify-between items-center mt-3 text-xs text-indigo-600 font-bold"><span>{t("فتح الملف الكامل", "Open full profile")}</span><span>{en ? "→" : "←"}</span></div>
             </button>
           ))}
-          {!customers.length && <div className="col-span-full text-center py-14 text-slate-400"><Users className="w-8 h-8 mx-auto mb-2 opacity-40"/>{t("لا يوجد عملاء مطابقون للبحث", "No matching customers found")}</div>}
+          {!customers.length && <div className="col-span-full text-center py-14 text-slate-400"><span className="block text-2xl mb-2 opacity-40">👥</span>{t("لا يوجد عملاء مطابقون للبحث", "No matching customers found")}</div>}
         </div>
       </section>
 
