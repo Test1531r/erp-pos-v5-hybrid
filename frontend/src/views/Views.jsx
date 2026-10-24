@@ -790,111 +790,74 @@ function InvoiceDetail({ id }) {
   const [inv, setInv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError("");
     setInv(null);
-    api.get(`/invoices/${id}`)
-      .then(({ data }) => { if (active) setInv(data); })
-      .catch((err) => { if (active) setError(err.response?.data?.error || "تعذر تحميل تفاصيل الفاتورة. تحقق من الاتصال وحاول مرة أخرى."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [id]);
+    const timer = setTimeout(() => controller.abort(), 15000);
+    api.get(`/invoices/${encodeURIComponent(id)}`, { signal: controller.signal })
+      .then(({ data }) => {
+        if (!active) return;
+        const invoice = data?.invoice || data?.data || data;
+        if (!invoice || !invoice.id) throw new Error("استجابة تفاصيل الفاتورة غير مكتملة");
+        setInv(invoice);
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err.name === "CanceledError" || err.name === "AbortError"
+          ? "استغرق تحميل الفاتورة وقتًا أطول من اللازم. تحقق من الاتصال ثم أعد المحاولة."
+          : err.response?.data?.error || err.message || "تعذر تحميل تفاصيل الفاتورة. تحقق من صلاحياتك والاتصال ثم أعد المحاولة.");
+      })
+      .finally(() => {
+        clearTimeout(timer);
+        if (active) setLoading(false);
+      });
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
+  }, [id, attempt]);
+
+  const money = (value) => Number(value ?? 0).toLocaleString("ar-EG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const retry = () => setAttempt((value) => value + 1);
 
   if (loading) {
-    return <div className="text-center py-12 text-slate-500"><div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600" /><p>جاري تحميل تفاصيل الفاتورة...</p></div>;
+    return <div className="flex min-h-56 flex-col items-center justify-center gap-3 py-12 text-slate-500"><div className="h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600" /><p className="font-semibold">جاري تحميل تفاصيل الفاتورة...</p><p className="text-xs">لن يتوقف العرض دون إظهار رسالة عند تعذر الاتصال</p></div>;
   }
 
   if (error || !inv) {
-    return <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center space-y-3"><p className="font-semibold text-red-700">{error || "تعذر تحميل الفاتورة"}</p><button onClick={() => { setLoading(true); setError(""); api.get(`/invoices/${id}`).then(({ data }) => setInv(data)).catch((err) => setError(err.response?.data?.error || "تعذر تحميل تفاصيل الفاتورة")).finally(() => setLoading(false)); }} className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-red-700 border border-red-200 hover:bg-red-100">إعادة المحاولة</button></div>;
+    return <div className="space-y-3 rounded-2xl border border-red-100 bg-red-50 p-6 text-center"><div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-red-100 text-red-700"><AlertTriangle className="h-5 w-5"/></div><p className="font-semibold text-red-700">{error || "تعذر تحميل الفاتورة"}</p><div className="flex justify-center gap-2"><button onClick={retry} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700">إعادة المحاولة</button></div></div>;
   }
 
+  const items = Array.isArray(inv.items) ? inv.items : [];
+  const paid = Number(inv.amountPaid ?? 0);
+  const total = Number(inv.total ?? 0);
+  const due = Math.max(0, total - paid);
+
   return (
-    <div className="space-y-4 text-sm">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">{t("الكاشير", "Cashier")}</p>
-          <p className="font-semibold">{inv.cashier?.name}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">{t("العميل", "Customer")}</p>
-          <p className="font-semibold">{inv.customer?.name || "عميل عادي"}</p>
-        </div>
-        <div className="bg-slate-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">{t("طريقة الدفع", "Payment method")}</p>
-          <p className="font-semibold">{inv.paymentMethod}</p>
-        </div>
-        <div className="bg-green-50 rounded-xl p-3">
-          <p className="text-slate-500 text-xs">{t("الإجمالي", "Total")}</p>
-          <p className="font-bold text-lg text-green-600">
-            {parseFloat(inv.total).toFixed(2)} ج
-          </p>
-        </div>
+    <div className="space-y-5 text-sm">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("رقم الفاتورة", "Invoice number")}</p><p className="mt-1 font-bold font-mono">{inv.invoiceNumber || "—"}</p></div>
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("التاريخ", "Date")}</p><p className="mt-1 font-semibold">{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : "—"}</p></div>
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("الكاشير", "Cashier")}</p><p className="mt-1 font-semibold">{inv.cashier?.name || "—"}</p></div>
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("العميل", "Customer")}</p><p className="mt-1 font-semibold">{inv.customer?.name || t("عميل نقدي", "Walk-in customer")}</p><p className="mt-1 text-xs text-slate-400">{inv.customer?.phone || ""}</p></div>
+        <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">{t("طريقة الدفع", "Payment method")}</p><p className="mt-1 font-semibold">{inv.paymentMethod || "—"}</p></div>
+        <div className="rounded-xl bg-indigo-50 p-4"><p className="text-xs text-indigo-600">{t("حالة السداد", "Payment status")}</p><p className="mt-1 font-bold text-indigo-800">{due <= 0.009 ? t("مدفوعة بالكامل", "Paid in full") : t("متبقي للتحصيل", "Outstanding balance")}</p><p className="mt-1 font-semibold">{money(due)} {t("ج.م", "EGP")}</p></div>
       </div>
 
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b text-slate-500">
-            <th className="text-right py-2">المنتج</th>
-            <th className="text-center py-2">كمية</th>
-            <th className="text-right py-2">سعر</th>
-            <th className="text-right py-2">إجمالي</th>
-          </tr>
-        </thead>
-        <tbody>
-          {inv.items?.map((item) => (
-            <tr key={item.id} className="border-b">
-              <td className="py-2">
-                {item.productName}
-                {item.imeiNumbers?.length > 0 && (
-                  <p className="text-slate-400 font-mono">
-                    {item.imeiNumbers.join(", ")}
-                  </p>
-                )}
-              </td>
-              <td className="py-2 text-center">{item.quantity}</td>
-              <td className="py-2">{parseFloat(item.unitPrice).toFixed(2)}</td>
-              <td className="py-2 font-semibold">
-                {parseFloat(item.lineTotal).toFixed(2)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="overflow-hidden rounded-xl border border-slate-200">
+        <div className="flex items-center justify-between bg-slate-50 px-4 py-3"><h4 className="font-bold text-slate-800">{t("أصناف الفاتورة", "Invoice items")}</h4><span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500">{items.length} {t("صنف", "items")}</span></div>
+        {items.length ? <div className="overflow-x-auto"><table className="w-full min-w-[520px] text-xs"><thead><tr className="border-b text-slate-500"><th className="px-4 py-3 text-start">{t("المنتج", "Product")}</th><th className="px-4 py-3 text-center">{t("الكمية", "Qty")}</th><th className="px-4 py-3 text-end">{t("سعر الوحدة", "Unit price")}</th><th className="px-4 py-3 text-end">{t("الإجمالي", "Line total")}</th></tr></thead><tbody>{items.map((item, index) => <tr key={item.id || index} className="border-b last:border-0"><td className="px-4 py-3 font-semibold">{item.productName || item.name || t("منتج", "Product")}{Array.isArray(item.imeiNumbers) && item.imeiNumbers.length > 0 && <p className="mt-1 break-all font-mono text-[10px] text-slate-400">IMEI: {item.imeiNumbers.join(", ")}</p>}</td><td className="px-4 py-3 text-center">{Number(item.quantity || 0)}</td><td className="px-4 py-3 text-end">{money(item.unitPrice)}</td><td className="px-4 py-3 text-end font-bold">{money(item.lineTotal)}</td></tr>)}</tbody></table></div> : <p className="p-6 text-center text-slate-400">{t("لا توجد أصناف في بيانات الفاتورة", "No items were returned for this invoice")}</p>}
+      </div>
 
-      <div className="space-y-1 text-sm border-t pt-3">
-        <div className="flex justify-between text-slate-600">
-          <span>مجموع فرعي</span>
-          <span>{parseFloat(inv.subtotal).toFixed(2)}</span>
-        </div>
-        {parseFloat(inv.discountAmount) > 0 && (
-          <div className="flex justify-between text-green-600">
-            <span>خصم</span>
-            <span>-{parseFloat(inv.discountAmount).toFixed(2)}</span>
-          </div>
-        )}
-        {parseFloat(inv.taxAmount) > 0 && (
-          <div className="flex justify-between">
-            <span>ضريبة</span>
-            <span>{parseFloat(inv.taxAmount).toFixed(2)}</span>
-          </div>
-        )}
-        <div className="flex justify-between font-bold text-base border-t pt-2">
-          <span>{t("الإجمالي", "Total")}</span>
-          <span className="text-indigo-600">{parseFloat(inv.total).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>{t("المدفوع", "Paid")}</span>
-          <span>{parseFloat(inv.amountPaid).toFixed(2)}</span>
-        </div>
-        {parseFloat(inv.changeGiven) > 0 && (
-          <div className="flex justify-between text-green-600 font-semibold">
-            <span>{t("الباقي", "Change due")}</span>
-            <span>{parseFloat(inv.changeGiven).toFixed(2)}</span>
-          </div>
-        )}
+      <div className="space-y-3 rounded-xl border border-slate-200 p-4">
+        <div className="flex justify-between text-slate-600"><span>{t("المجموع الفرعي", "Subtotal")}</span><span>{money(inv.subtotal)}</span></div>
+        {Number(inv.discountAmount || 0) > 0 && <div className="flex justify-between text-emerald-700"><span>{t("الخصم", "Discount")}</span><span>−{money(inv.discountAmount)}</span></div>}
+        {Number(inv.taxAmount || 0) > 0 && <div className="flex justify-between"><span>{t("الضريبة", "Tax")}</span><span>{money(inv.taxAmount)}</span></div>}
+        <div className="flex justify-between border-t pt-3 text-base font-black"><span>{t("الإجمالي النهائي", "Grand total")}</span><span className="text-indigo-700">{money(total)} {t("ج.م", "EGP")}</span></div>
+        <div className="flex justify-between"><span>{t("المدفوع", "Paid")}</span><span className="font-bold text-emerald-700">{money(paid)} {t("ج.م", "EGP")}</span></div>
+        {Number(inv.changeGiven || 0) > 0 && <div className="flex justify-between text-emerald-700"><span>{t("الباقي للعميل", "Change given")}</span><span>{money(inv.changeGiven)}</span></div>}
       </div>
     </div>
   );
