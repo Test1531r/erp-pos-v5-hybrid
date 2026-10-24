@@ -598,7 +598,7 @@ export default function POS() {
   useEffect(() => { fetchProducts({ search: searchQuery, categoryId: selectedCategory }); }, [searchQuery, selectedCategory, activeBranch?.id]);
 
   return (
-    <div className="flex h-full overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
+    <div className="erp-pro-page erp-pos-page flex h-full overflow-hidden bg-slate-100" dir={en ? "ltr" : "rtl"}>
       {/* ── LEFT: PRODUCTS ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Search & Filter Bar */}
