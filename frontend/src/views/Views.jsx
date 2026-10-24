@@ -787,6 +787,9 @@ export function Sales() {
 }
 
 function InvoiceDetail({ id }) {
+  const language = useStore((state) => state.language);
+  const en = language === "en";
+  const t = (ar, english) => en ? english : ar;
   const [inv, setInv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
