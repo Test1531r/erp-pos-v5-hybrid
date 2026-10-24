@@ -22,19 +22,26 @@ export default function Approvals() {
   const [decisionDraft, setDecisionDraft] = useState(null);
   const [decisionNotes, setDecisionNotes] = useState("");
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get("/approvals", { params: status === "ALL" ? {} : { status } });
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      toast.error(e.response?.data?.error || "تعذر تحميل الموافقات");
+      if (!silent) toast.error(e.response?.data?.error || "تعذر تحميل الموافقات");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
-  useEffect(() => { if (activeBranch?.id) load(); }, [activeBranch?.id, status]);
+  // Keep the manager's queue current while the page is open. Silent refreshes
+  // avoid spinners/toasts every few seconds and do not interrupt decisions.
+  useEffect(() => {
+    if (!activeBranch?.id) return;
+    load();
+    const timer = window.setInterval(() => load(true), 10000);
+    return () => window.clearInterval(timer);
+  }, [activeBranch?.id, status]);
 
   const openDecision = (row, decision) => {
     setDecisionNotes("");
@@ -72,10 +79,13 @@ export default function Approvals() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {[[ "PENDING", "بانتظار الموافقة" ], [ "APPROVED", "المعتمدة" ], [ "REJECTED", "المرفوضة" ], [ "ALL", "الكل" ]].map(([value, label]) =>
-          <button key={value} onClick={() => setStatus(value)} className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${status === value ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>{label}</button>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {[[ "PENDING", "بانتظار الموافقة" ], [ "APPROVED", "المعتمدة" ], [ "REJECTED", "المرفوضة" ], [ "ALL", "الكل" ]].map(([value, label]) =>
+            <button key={value} onClick={() => setStatus(value)} className={`rounded-xl px-4 py-2 text-sm font-semibold border transition-colors ${status === value ? "bg-indigo-600 text-white border-indigo-600 shadow-sm" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"}`}>{label}</button>
+          )}
+        </div>
+        {status === "PENDING" && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-sm font-bold text-amber-800">{rows.filter(r => r.status === "PENDING").length} {t("طلب معلق", "pending")}</span>}
       </div>
 
       <div className="grid gap-3">
@@ -106,7 +116,11 @@ export default function Approvals() {
             </article>
           );
         })}
-        {!rows.length && <div className="text-center bg-white border border-slate-200 rounded-2xl p-10 text-slate-400">{loading ? "جارٍ تحميل الطلبات..." : "لا توجد طلبات في هذا التصنيف."}</div>}
+        {!rows.length && <div className="text-center bg-white border border-slate-200 rounded-2xl p-8 md:p-10">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500"><ShieldCheck className="h-6 w-6" /></div>
+          <p className="font-semibold text-slate-700">{loading ? t("جارٍ تحميل الطلبات...", "Loading requests...") : t("لا توجد طلبات في هذا التصنيف", "No requests in this category")}</p>
+          {!loading && status === "PENDING" && <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">{t("طلبات الموافقة لا تُنشأ بمجرد فتح هذه الصفحة. جرّب إرسال طلب اعتماد خصم من شاشة إتمام البيع، أو أضف مصروفًا يتجاوز حد الموافقة المحدد في إعدادات الفرع. تأكد أيضًا أن الموظف والمدير يعملان على نفس الفرع.", "Requests are created by an action, not by opening this page. Try requesting approval for an over-limit discount at checkout, or submit an expense above the branch approval threshold. The requester and manager must use the same branch.")}</p>}
+        </div>}
       </div>
 
       {decisionDraft && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" onMouseDown={e => { if (e.target === e.currentTarget && !busyId) setDecisionDraft(null); }}>
