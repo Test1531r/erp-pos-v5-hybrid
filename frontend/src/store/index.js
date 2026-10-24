@@ -179,20 +179,19 @@ export const useStore = create(
       },
 
       getFilteredProducts: () => {
-        const { products, searchQuery, selectedCategory, getStock } = get();
+        const { products, searchQuery, selectedCategory } = get();
+        const query = String(searchQuery || "").trim().toLocaleLowerCase();
         return products.filter((p) => {
           if (!p.isActive) return false;
           if (selectedCategory && p.categoryId !== selectedCategory) return false;
-          if (searchQuery) {
-            const q = searchQuery.toLowerCase();
-            return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || p.barcode?.includes(q) || p.brand?.toLowerCase().includes(q);
-          }
-          return true;
+          if (!query) return true;
+          const fields = [p.name, p.displayName, p.sku, p.barcode, p.brand, p.variantLabel, p.parentProduct?.name];
+          return fields.some(value => String(value || "").toLocaleLowerCase().includes(query));
         }).sort((a, b) => {
-          const sa = getStock(a.id), sb = getStock(b.id);
+          const sa = get().getStock(a.id), sb = get().getStock(b.id);
           if (sa === 0 && sb > 0) return 1;
           if (sb === 0 && sa > 0) return -1;
-          return 0;
+          return String(a.name || "").localeCompare(String(b.name || ""));
         });
       },
 
