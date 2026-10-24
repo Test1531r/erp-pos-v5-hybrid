@@ -77,7 +77,7 @@ export default function Growth() {
   };
 
   return <div className="erp-pro-page erp-promotions-page p-6 space-y-5" dir={en ? "ltr" : "rtl"}>
-    <div><h1 className="text-2xl font-bold">{t("العروض والولاء و Trade-In", "Promotions, loyalty & trade-in")}</h1><p className="text-sm text-slate-500">{t("مركز نمو المبيعات وخدمة العملاء", "Sales growth and customer engagement center")}</p></div>
+    <div><h1 className="text-2xl font-bold">{t("العروض", "Promotions")}</h1></div>
     <section className="grid grid-cols-2 xl:grid-cols-4 gap-3" aria-label={t("ملخص العروض","Promotion overview")}>
       <div className="rounded-2xl border bg-gradient-to-br from-indigo-50 to-white p-4"><p className="text-xs font-semibold text-indigo-700">{t("إجمالي العروض","Total promotions")}</p><p className="mt-2 text-3xl font-black text-slate-900">{promos.length}</p><p className="mt-1 text-xs text-slate-500">{t("كل العروض المسجلة","All saved promotions")}</p></div>
       <div className="rounded-2xl border bg-gradient-to-br from-emerald-50 to-white p-4"><p className="text-xs font-semibold text-emerald-700">{t("عروض مفعلة","Active promotions")}</p><p className="mt-2 text-3xl font-black text-slate-900">{promos.filter(x=>x.isActive).length}</p><p className="mt-1 text-xs text-slate-500">{t("جاهزة للتطبيق وفق شروطها","Enabled, subject to their rules")}</p></div>
@@ -92,7 +92,7 @@ export default function Growth() {
 
     {tab === "promotions" && <>
       <section className="rounded-3xl border bg-white p-5 shadow-sm space-y-4">
-        <div><h2 className="text-lg font-extrabold">{editingPromo ? "تعديل العرض" : "إنشاء عرض احترافي"}</h2><p className="text-sm text-slate-500 mt-1">تحكم في كود الخصم والحدود وفترة الصلاحية والاستخدام.</p></div>
+        <div><h2 className="text-lg font-extrabold">{editingPromo ? "تعديل كود الخصم" : "إنشاء كود خصم"}</h2></div>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="text-sm font-semibold">اسم العرض *<input value={p.name} onChange={e=>setP({...p,name:e.target.value})} className="mt-1 w-full rounded-xl border p-3 font-normal" placeholder="خصم نهاية الأسبوع"/></label>
           <label className="text-sm font-semibold">كود الخصم<input value={p.code} onChange={e=>setP({...p,code:e.target.value.toUpperCase().replace(/\s/g,"")})} className="mt-1 w-full rounded-xl border p-3 font-mono font-normal" placeholder="WEEKEND15"/></label>
