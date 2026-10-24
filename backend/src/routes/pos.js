@@ -90,7 +90,7 @@ router.post("/checkout", async (req, res) => {
       }
 
       const itemDiscountTotal = lineItems.reduce((sum, item) => sum.add(item.unitPrice.mul(item.quantity).mul(item.discountPct).div(100)), decimal(0));
-      const itemNeedsApproval = req.user.role === "CASHIER" && lineItems.some(item => Number(item.discountPct) > Number(req.user.maxDiscountPct || 0));
+      const itemNeedsApproval = lineItems.some(item => (req.user.role === "CASHIER" && Number(item.discountPct) > Number(req.user.maxDiscountPct || 0)) || (req.user.role !== "SUPER_ADMIN" && branchSettings.requireApprovalDiscountAbove != null && Number(item.discountPct) > Number(branchSettings.requireApprovalDiscountAbove)));
       if (itemNeedsApproval) {
         const approvalId = String(req.body.approvalRequestId || "");
         if (!approvalId) throw Object.assign(new Error("يتطلب خصم صنف تجاوز حدك موافقة المدير. سيتم إرسال طلب الموافقة من شاشة البيع."), { status: 403 });
