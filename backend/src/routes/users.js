@@ -10,9 +10,29 @@ const managerAllowedRoles = new Set(["CASHIER", "INVENTORY_MANAGER", "ACCOUNTANT
 const validRoles = new Set(["SUPER_ADMIN", "BRANCH_MANAGER", "CASHIER", "INVENTORY_MANAGER", "ACCOUNTANT", "TECHNICIAN"]);
 
 router.get("/", authorize("SUPER_ADMIN"), async (req, res) => {
-  const where = req.user.role === "BRANCH_MANAGER" ? { branchId: req.user.branchId } : {};
-  const users = await prisma.user.findMany({ where, select: { id: true, name: true, username: true, email: true, role: true, branchId: true, isActive: true, lastLoginAt: true, permissions: true, maxDiscountPct: true, branch: { select: { name: true } } }, orderBy: { name: "asc" } });
-  res.json(users);
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true, name: true, username: true, email: true, role: true, branchId: true,
+        isActive: true, lastLoginAt: true, createdAt: true, permissions: true, maxDiscountPct: true,
+        branch: { select: { name: true } },
+        invoices: { select: { id: true, total: true } },
+        saleReturns: { where: { status: "COMPLETED" }, select: { id: true, total: true } },
+        repairTickets: { select: { id: true } },
+        expenses: { select: { id: true, amount: true } },
+      },
+      orderBy: { name: "asc" },
+    });
+    const data = users.map(({ invoices, saleReturns, repairTickets, expenses, ...user }) => {
+      const salesTotal = invoices.reduce((sum, item) => sum + Number(item.total || 0), 0);
+      const returnsTotal = saleReturns.reduce((sum, item) => sum + Number(item.total || 0), 0);
+      return { ...user, salesCount: invoices.length, salesTotal, returnsCount: saleReturns.length, returnsTotal, netSales: salesTotal - returnsTotal, repairsCount: repairTickets.length, expensesCount: expenses.length, expensesTotal: expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0) };
+    });
+    res.json(data);
+  } catch (err) {
+    console.error("List users failed:", err);
+    res.status(500).json({ error: "تعذر تحميل المستخدمين" });
+  }
 });
 
 router.post("/", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) => {
@@ -50,4 +70,36 @@ router.put("/:id", authorize("SUPER_ADMIN", "BRANCH_MANAGER"), async (req, res) 
     res.json(user);
   } catch { res.status(500).json({ error: "تعذر تحديث المستخدم" }); }
 });
+router.delete("/:id", authorize("SUPER_ADMIN"), async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    if (targetId === req.user.id) return res.status(400).json({ error: "لا يمكنك حذف حسابك الحالي" });
+    const target = await prisma.user.findUnique({ where: { id: targetId }, select: { id: true, name: true, username: true, role: true, branchId: true } });
+    if (!target) return res.status(404).json({ error: "المستخدم غير موجود" });
+    if (target.role === "SUPER_ADMIN") {
+      const admins = await prisma.user.count({ where: { role: "SUPER_ADMIN", isActive: true } });
+      if (admins <= 1) return res.status(400).json({ error: "لا يمكن حذف آخر مدير نظام نشط" });
+    }
+    const [invoices, returns, repairs, expenses, transfers, movements, approvals, logs] = await Promise.all([
+      prisma.invoice.count({ where: { cashierId: targetId } }),
+      prisma.saleReturn.count({ where: { userId: targetId } }),
+      prisma.repairTicket.count({ where: { technicianId: targetId } }),
+      prisma.expense.count({ where: { createdById: targetId } }),
+      prisma.stockTransfer.count({ where: { createdById: targetId } }),
+      prisma.stockMovement.count({ where: { userId: targetId } }),
+      prisma.approvalRequest.count({ where: { OR: [{ requesterId: targetId }, { decidedById: targetId }] } }),
+      prisma.auditLog.count({ where: { userId: targetId } }),
+    ]);
+    const historyCount = invoices + returns + repairs + expenses + transfers + movements + approvals + logs;
+    if (historyCount > 0) return res.status(409).json({ error: "لا يمكن حذف هذا المستخدم نهائيًا لارتباط حسابه بسجلات تشغيلية أو مالية. عطّل الحساب بدلًا من ذلك للحفاظ على سجل المراجعة.", linkedRecords: { invoices, returns, repairs, expenses, transfers, movements, approvals, auditLogs: logs } });
+    await prisma.user.delete({ where: { id: targetId } });
+    await audit(req.user, "DELETE", "User", targetId, { username: target.username, role: target.role }, target.branchId);
+    return res.json({ success: true, message: "تم حذف المستخدم" });
+  } catch (err) {
+    console.error("Delete user failed:", err);
+    if (err.code === "P2003" || err.code === "P2014") return res.status(409).json({ error: "لا يمكن حذف المستخدم لارتباطه بسجلات أخرى. عطّل الحساب بدلًا من ذلك." });
+    return res.status(500).json({ error: "تعذر حذف المستخدم" });
+  }
+});
+
 export default router;
