@@ -364,7 +364,7 @@ function CheckoutModal({ onClose }) {
           {needsDiscountApproval && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
               <p className="text-sm font-semibold text-amber-900">{t("الخصم على الفاتورة أو أحد الأصناف يحتاج موافقة المدير قبل إتمام البيع.", "The invoice or an item discount requires manager approval before checkout.")}</p>
-              {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : discountApprovalStatus === "REJECTED" ? "text-red-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، جارٍ استكمال البيع وإصدار الفاتورة تلقائيًا." : discountApprovalStatus === "REJECTED" ? "تم رفض الطلب. عدّل الخصم ثم أعد المحاولة." : "تم إرسال الطلب تلقائيًا عند محاولة إتمام البيع. بانتظار المدير..."}</p>
+              {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : discountApprovalStatus === "REJECTED" ? "text-red-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، جارٍ استكمال البيع وإصدار الفاتورة تلقائيًا." : discountApprovalStatus === "REJECTED" ? "تم رفض الطلب. عدّل الخصم ثم أعد المحاولة." : "تم إرسال الطلب تلقائيًا عند محاولة إتمام البيع. بانتظار المدير..."}</p>}
               {!discountApprovalId && <p className="text-xs text-amber-800">اضغط «إتمام البيع» لإرسال طلب الموافقة تلقائيًا. ستظل السلة كما هي لحين صدور القرار.</p>}
             </div>
           )}
