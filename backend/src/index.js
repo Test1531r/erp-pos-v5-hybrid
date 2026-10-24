@@ -137,8 +137,24 @@ app.get("/health", async (req, res) => {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDist = path.resolve(__dirname, "../../frontend/dist");
 if (fs.existsSync(frontendDist)) {
-  app.use(express.static(frontendDist, { maxAge: process.env.NODE_ENV === "production" ? "1d" : 0 }));
-  app.get(/^\/(?!api|health|socket\.io).*/, (req, res) => res.sendFile(path.join(frontendDist, "index.html")));
+  // Keep the SPA entry point fresh so browsers don't keep serving an old build
+  // after Railway deploys a new frontend. Vite's hashed assets remain cacheable.
+  app.use(express.static(frontendDist, {
+    maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === "index.html") {
+        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+      }
+    },
+  }));
+  app.get(/^\/(?!api|health|socket\.io).*/, (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
 }
 
 app.use((req, res) => {
