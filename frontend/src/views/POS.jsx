@@ -198,7 +198,10 @@ function CheckoutModal({ onClose }) {
   const [branchDiscountLimit, setBranchDiscountLimit] = useState(null);
   const user = useStore((s) => s.user);
   const discountPct = totals.subtotal > 0 ? (Number(cartDiscount || 0) / totals.subtotal) * 100 : 0;
-  const needsDiscountApproval = user?.role !== "SUPER_ADMIN" && ((user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0)) || (branchDiscountLimit !== null && discountPct > branchDiscountLimit));
+  const itemDiscountTotal = cartItems.reduce((sum, item) => sum + Number(item.unitPrice || 0) * Number(item.quantity || 0) * Number(item.discountPct || 0) / 100, 0);
+  const approvalDiscountAmount = Number(cartDiscount || 0) + itemDiscountTotal;
+  const hasOverLimitItemDiscount = user?.role === "CASHIER" && cartItems.some(item => Number(item.discountPct || 0) > Number(user?.maxDiscountPct || 0));
+  const needsDiscountApproval = user?.role !== "SUPER_ADMIN" && (hasOverLimitItemDiscount || (user?.role === "CASHIER" && discountPct > Number(user?.maxDiscountPct || 0)) || (branchDiscountLimit !== null && discountPct > branchDiscountLimit));
   const imeiVal = validateIMEIs();
 
   useEffect(() => {
@@ -211,11 +214,14 @@ function CheckoutModal({ onClose }) {
     let alive = true;
     const check = async () => {
       try {
-        const { data } = await api.get("/approvals?status=APPROVED");
-        const approved = (Array.isArray(data) ? data : []).find(r => r.id === discountApprovalId && !r.entityId);
-        if (alive && approved) {
+        const { data } = await api.get("/approvals");
+        const request = (Array.isArray(data) ? data : []).find(r => r.id === discountApprovalId);
+        if (alive && request?.status === "APPROVED" && !request.entityId) {
           setDiscountApprovalStatus("APPROVED");
           toast.success(t("تمت الموافقة على الخصم. يمكنك إتمام البيع الآن.", "Discount approved. You can complete the sale."));
+        } else if (alive && request?.status === "REJECTED") {
+          setDiscountApprovalStatus("REJECTED");
+          toast.error(t("تم رفض طلب الخصم. يمكنك تعديل الخصم ثم إعادة المحاولة.", "Discount request rejected. Adjust the discount and try again."));
         }
       } catch {}
     };
@@ -233,6 +239,17 @@ function CheckoutModal({ onClose }) {
   const canCheckout = (mixed ? Math.abs(splitTotal - totals.total) < 0.01 && splits.filter(p => Number(p.amount) > 0).length >= 2 : method === "CREDIT" ? !!cartCustomer : paid >= totals.total - 0.01) && imeiVal.valid;
 
   const handleCheckout = async () => {
+    if (needsDiscountApproval && discountApprovalStatus !== "APPROVED") {
+      if (discountApprovalStatus === "REJECTED") {
+        setDiscountApprovalId("");
+        setDiscountApprovalStatus("NONE");
+      } else if (!discountApprovalId) {
+        await requestDiscountApproval();
+      } else {
+        toast(t("عملية البيع محفوظة في الانتظار. انتظر موافقة المدير قبل إتمامها.", "Checkout is waiting for manager approval."));
+      }
+      return;
+    }
     const paymentSplits = mixed ? splits.filter(p => Number(p.amount) > 0).map(p => ({ method: p.method, amount: Number(p.amount), accountId: p.accountId || undefined })) : null;
     const result = await checkout(mixed ? "MIXED" : method, mixed ? splitTotal : (method === "CREDIT" ? 0 : paid), paymentSplits, { promotionCode: promotionCode.trim() || undefined, redeemPoints: Number(redeemPoints) || 0, ...(discountApprovalId ? { approvalRequestId: discountApprovalId } : {}), ...(method === "CREDIT" ? credit : {}) });
     if (result.success) setReceipt(result);
@@ -246,9 +263,9 @@ function CheckoutModal({ onClose }) {
       const { data } = await api.post("/approvals", {
         entityType: "DISCOUNT",
         action: "APPROVE_DISCOUNT",
-        amount: Number(cartDiscount),
-        reason: "اعتماد خصم يتجاوز الحد المسموح للكاشير",
-        payload: { discountAmount: Number(Number(cartDiscount).toFixed(2)), subtotal: Number(totals.subtotal.toFixed(2)), itemCount: cartItems.length, cartSignature }
+        amount: Number(approvalDiscountAmount.toFixed(2)),
+        reason: "طلب موافقة تلقائي على خصم يتجاوز الحد المسموح قبل إتمام البيع",
+        payload: { discountAmount: Number(approvalDiscountAmount.toFixed(2)), subtotal: Number(totals.subtotal.toFixed(2)), itemCount: cartItems.length, cartSignature }
       });
       setDiscountApprovalId(data.id);
       setDiscountApprovalStatus("PENDING");
@@ -337,12 +354,9 @@ function CheckoutModal({ onClose }) {
 
           {needsDiscountApproval && (
             <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2">
-              <p className="text-sm font-semibold text-amber-900">{t("هذا الخصم يتجاوز حدك المسموح", "This discount exceeds your allowed limit")} ({Number(user?.maxDiscountPct || 0)}%). يلزم اعتماد المدير قبل إتمام البيع.</p>
-              {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، يمكنك إتمام البيع." : "بانتظار اعتماد المدير..."}</p>}
-              <button type="button" onClick={requestDiscountApproval} disabled={discountApprovalLoading || !!discountApprovalId} className="w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">
-                {discountApprovalLoading ? "جارٍ إرسال الطلب..." : discountApprovalStatus === "APPROVED" ? "تمت الموافقة" : discountApprovalId ? "تم إرسال الطلب — بانتظار المدير" : "طلب موافقة المدير على الخصم"}
-              </button>
-              <p className="text-xs text-amber-800">بعد اعتماد الطلب، حدّث صفحة الموافقات أو انتظر القرار ثم أعد إتمام البيع.</p>
+              <p className="text-sm font-semibold text-amber-900">{t("الخصم على الفاتورة أو أحد الأصناف يحتاج موافقة المدير قبل إتمام البيع.", "The invoice or an item discount requires manager approval before checkout.")}</p>
+              {discountApprovalId && <p className={`text-xs font-semibold ${discountApprovalStatus === "APPROVED" ? "text-green-700" : discountApprovalStatus === "REJECTED" ? "text-red-700" : "text-amber-800"}`}>رقم الطلب: {discountApprovalId} — {discountApprovalStatus === "APPROVED" ? "تمت الموافقة، اضغط إتمام البيع مرة أخرى لإصدار الفاتورة." : discountApprovalStatus === "REJECTED" ? "تم رفض الطلب. عدّل الخصم ثم أعد المحاولة." : "تم إرسال الطلب تلقائيًا عند محاولة إتمام البيع. بانتظار المدير..."}</p>
+              {!discountApprovalId && <p className="text-xs text-amber-800">اضغط «إتمام البيع» لإرسال طلب الموافقة تلقائيًا. ستظل السلة كما هي لحين صدور القرار.</p>}
             </div>
           )}
 
