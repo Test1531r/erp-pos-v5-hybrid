@@ -249,10 +249,6 @@ export default function Branches() {
             إدارة الفروع
           </h1>
 
-          <p className="text-slate-500 mt-1">
-            إدارة جميع فروع الشركة
-          </p>
-
         </div>
 
         <Btn onClick={openAdd}>
