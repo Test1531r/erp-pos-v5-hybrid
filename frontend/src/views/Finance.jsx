@@ -39,6 +39,17 @@ export default function Finance(){
   const submitAccount=async()=>{ setBusy(true); try{await api.post("/finance/accounts",account);toast.success("تم إنشاء الحساب");setModal(null);setAccount({name:"",code:"",type:"WALLET",openingBalance:"0"});load();}catch(e){toast.error(e.response?.data?.error||"فشل إنشاء الحساب");}finally{setBusy(false);} };
   const openShift=async()=>{ try{await api.post("/finance/shifts/open",{openingBalance:Number(shiftAmount||0)});toast.success("تم فتح الوردية");setShiftAmount("");setModal(null);load();}catch(e){toast.error(e.response?.data?.error||"تعذر فتح الوردية");} };
   const closeShift=async()=>{ try{await api.post(`/finance/shifts/${currentShift.id}/close`,{actualBalance:Number(shiftAmount)});toast.success("تم إغلاق الوردية");setShiftAmount("");setModal(null);load();}catch(e){toast.error(e.response?.data?.error||"تعذر إغلاق الوردية");} };
+  const card = (label, value, Icon, cls) => (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-slate-500">{t(label, label)}</span>
+        <span className="rounded-xl bg-slate-100 p-3"><Icon className={"h-5 w-5 " + cls} /></span>
+      </div>
+      <p className={"mt-4 text-2xl font-black " + cls}>
+        {currency(value)} <span className="text-xs font-medium text-slate-400">{t("ج.م", "EGP")}</span>
+      </p>
+    </div>
+  );
   const currency=(v)=>Number(v||0).toLocaleString(en?"en-US":"ar-EG",{minimumFractionDigits:2,maximumFractionDigits:2});
   const filteredTransactions=transactions.filter(x=>directionFilter==="ALL"||x.direction===directionFilter);
   const exportCsv=()=>{const rows=[["Date","Account","Type","Description","Direction","Amount","Balance after","User"],...filteredTransactions.map(x=>[new Date(x.createdAt).toISOString(),x.account?.name||"",TX_EN[x.type]||x.type,x.description||"",x.direction,x.amount,x.balanceAfter,x.user?.name||""])];const csv="\uFEFF"+rows.map(row=>row.map(v=>"\""+String(v??"").replace(/"/g,'""')+"\"").join(",")).join("\r\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));const a=document.createElement("a");a.href=url;a.download="finance-transactions.csv";a.click();URL.revokeObjectURL(url);};
