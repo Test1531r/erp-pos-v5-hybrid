@@ -58,7 +58,7 @@ router.get("/:id/summary", async (req, res) => {
             payments: { orderBy: { createdAt: "desc" }, take: 20, include: { branch: { select: { name: true } }, user: { select: { name: true } } } },
           },
         },
-        repairs: { orderBy: { createdAt: "desc" }, take: 50, include: { branch: { select: { name: true } } } },
+        repairTickets: { orderBy: { createdAt: "desc" }, take: 50, include: { branch: { select: { name: true } } } },
         tradeIns: { orderBy: { createdAt: "desc" }, take: 50, include: { branch: { select: { name: true } }, user: { select: { name: true } } } },
         loyaltyTransactions: { orderBy: { createdAt: "desc" }, take: 100, include: { user: { select: { name: true } } } },
       },
@@ -82,7 +82,7 @@ router.get("/:id/summary", async (req, res) => {
     }
     const openReceivables = customer.receivables.filter((r) => !["PAID", "CANCELLED"].includes(r.status));
     res.json({
-      customer,
+      customer: { ...customer, repairs: customer.repairTickets },
       summary: {
         invoiceCount: invoiceStats._count._all,
         grossPurchases: Number(invoiceStats._sum.total || 0),
