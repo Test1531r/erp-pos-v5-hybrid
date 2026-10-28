@@ -475,18 +475,17 @@ router.delete("/:id", authorize("SUPER_ADMIN"), async (req, res) => {
       },
     });
 
-    if (
-      users > 0 ||
-      inventory > 0 ||
-      invoices > 0
-    ) {
+    if (users > 0 || inventory > 0 || invoices > 0) {
+      const blockers = [];
+      if (users > 0) blockers.push(`المستخدمون المرتبطون: ${users}`);
+      if (inventory > 0) blockers.push(`سجلات المخزون (حتى لو الكمية صفر): ${inventory}`);
+      if (invoices > 0) blockers.push(`الفواتير المحفوظة: ${invoices}`);
 
       return res.status(400).json({
         success: false,
-        error:
-          "لا يمكن حذف الفرع لأنه يحتوي على بيانات مرتبطة",
+        error: `لا يمكن إكمال العملية. البيانات التي ما زالت مرتبطة بالفرع: ${blockers.join("، ")}.`,
+        details: { users, inventory, invoices },
       });
-
     }
 
     const branch = await prisma.branch.update({
