@@ -235,14 +235,14 @@ export default function Branches() {
   }
 
   async function deleteBranch(id) {
-    if (!(await confirm(t("حذف الفرع إجراء حساس وقد يؤثر على العمليات المرتبطة به.","Deleting a branch is sensitive and may affect related operations."), { title: t("تأكيد حذف الفرع","Confirm branch deletion"), danger: true, confirmLabel: t("حذف الفرع","Delete branch") }))) return;
+    if (!(await confirm(t("سيتم إيقاف الفرع وإخفاؤه من الاستخدام النشط، مع الاحتفاظ بكل الفواتير والمخزون وسجلات الموظفين للرجوع إليها لاحقًا.","This will deactivate the branch while preserving its invoices, stock and staff history for future reference."), { title: t("تأكيد إيقاف الفرع","Confirm branch deactivation"), danger: true, confirmLabel: t("إيقاف الفرع","Deactivate branch") }))) return;
 
     try {
       await api.delete(`/branches/${id}`);
-      toast.success(t("تم الحذف","Deleted successfully"));
+      toast.success(t("تم إيقاف الفرع مع الاحتفاظ ببياناته","Branch deactivated; historical data preserved"));
       loadBranches();
     } catch (err) {
-      toast.error(err.response?.data?.error || t("تعذر الحذف","Could not delete branch"));
+      toast.error(err.response?.data?.error || t("تعذر إيقاف الفرع","Could not deactivate branch"));
     }
   }
 
