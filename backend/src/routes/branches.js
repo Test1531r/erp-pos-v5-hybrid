@@ -452,76 +452,45 @@ router.put("/:id", authorize("SUPER_ADMIN"), async (req, res) => {
 =========================== */
 
 router.delete("/:id", authorize("SUPER_ADMIN"), async (req, res) => {
-
   try {
-
     const id = req.params.id;
-
-    const users = await prisma.user.count({
-      where: {
-        branchId: id,
-      },
+    const existing = await prisma.branch.findUnique({
+      where: { id },
+      select: { id: true, name: true, isActive: true },
     });
 
-    const inventory = await prisma.inventory.count({
-      where: {
-        branchId: id,
-      },
-    });
-
-    const invoices = await prisma.invoice.count({
-      where: {
-        branchId: id,
-      },
-    });
-
-    if (
-      users > 0 ||
-      inventory > 0 ||
-      invoices > 0
-    ) {
-
-      return res.status(400).json({
+    if (!existing) {
+      return res.status(404).json({
         success: false,
-        error:
-          "لا يمكن حذف الفرع لأنه يحتوي على بيانات مرتبطة",
+        error: "الفرع غير موجود",
       });
-
     }
 
+    // This endpoint archives a branch; it must not delete historical data.
+    // Linked users, stock and invoices are expected and remain intact.
     const branch = await prisma.branch.update({
-      where: {
-        id,
-      },
-      data: {
-        isActive: false,
-      },
+      where: { id },
+      data: { isActive: false },
     });
 
-    await writeAudit(
-      req.user,
-      "DELETE",
-      "BRANCH",
-      id,
-      branch
-    );
+    await writeAudit(req.user, "ARCHIVE", "BRANCH", id, {
+      name: branch.name,
+      wasActive: existing.isActive,
+      isActive: branch.isActive,
+    });
 
-    res.json({
+    return res.json({
       success: true,
-      message: "تم تعطيل الفرع بنجاح",
+      message: "تم إيقاف الفرع بنجاح مع الاحتفاظ بجميع بياناته السابقة",
+      data: { id: branch.id, name: branch.name, isActive: branch.isActive },
     });
-
   } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
+    console.error("Branch archive error:", err);
+    return res.status(500).json({
       success: false,
-      error: err.message,
+      error: "تعذر إيقاف الفرع",
     });
-
   }
-
 });
 
 export default router;
